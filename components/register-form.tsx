@@ -189,8 +189,8 @@ export function RegisterForm({
                   inputMode="numeric"
                   maxLength={1}
                   value={digit}
-                  onChange={(e) => handleOtpChange(index, e.target.value)}
-                  onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleOtpChange(index, e.target.value)}
+                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => handleOtpKeyDown(index, e)}
                   disabled={loading}
                   className="w-14 h-14 text-center text-2xl font-bold rounded-2xl border-2 border-input focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all disabled:opacity-50"
                   style={{ borderColor: digit ? 'oklch(0.4545 0.1844 321.4624)' : '#eeeeee' }}
@@ -254,7 +254,7 @@ export function RegisterForm({
             placeholder="Juan Pérez"
             required
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
             disabled={loading}
           />
         </div>
@@ -269,7 +269,7 @@ export function RegisterForm({
             placeholder="tu@email.com"
             required
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
             disabled={loading}
           />
         </div>
@@ -285,7 +285,7 @@ export function RegisterForm({
             minLength={6}
             required
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
             disabled={loading}
           />
           <p className="text-xs text-muted-foreground">

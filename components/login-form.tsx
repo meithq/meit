@@ -75,7 +75,7 @@ export function LoginForm({
             placeholder="tu@email.com"
             required
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
             disabled={loading}
           />
         </div>
@@ -96,7 +96,7 @@ export function LoginForm({
             placeholder="••••••••"
             required
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
             disabled={loading}
           />
         </div>

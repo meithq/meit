@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button"
-import { ButtonProps } from "@/components/ui/button"
 
-export function SecondaryButton({ children, className = "", ...props }: ButtonProps) {
+export function SecondaryButton({ children, className = "", ...props }: React.ComponentProps<"button">) {
   return (
     <Button
       variant="outline"

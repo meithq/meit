@@ -1,11 +1,10 @@
 "use client"
 
 import { Input } from "@/components/ui/input"
-import { InputProps } from "@/components/ui/input"
 import { Eye, EyeOff } from "lucide-react"
 import { useState } from "react"
 
-export function FormInput({ className = "", type, ...props }: InputProps) {
+export function FormInput({ className = "", type, ...props }: React.ComponentProps<"input">) {
   const [showPassword, setShowPassword] = useState(false)
   const isPassword = type === "password"
 
