@@ -11,11 +11,26 @@ import { GiftCardsView } from "@/components/views/giftcards-view"
 import { RetosView } from "@/components/views/retos-view"
 import { PlaceholderView } from "@/components/views/placeholder-view"
 import { SettingsModal } from "@/components/settings-modal"
+import { NotificationsSheet } from "@/components/notifications-sheet"
+import { signOut } from "@/lib/supabase/auth"
+import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 function AdminContent() {
   const { currentView, setView } = useNavigation()
+  const router = useRouter()
   const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      router.push("/ingreso")
+      router.refresh()
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error)
+    }
+  }
 
   const renderView = () => {
     switch (currentView) {
@@ -42,6 +57,15 @@ function AdminContent() {
     <div className="h-screen bg-background flex overflow-hidden">
       {/* Sidebar izquierdo con iconos */}
       <aside className="w-20 flex flex-col items-center p-4 flex-shrink-0">
+        {/* Logo en la parte superior */}
+        <div className="mb-8 mt-2">
+          <img
+            src="https://yhfmxwleuufwueypmvgm.supabase.co/storage/v1/object/public/adminapp/PHOTO-2025-10-28-14-22-32.jpg"
+            alt="Meit Logo"
+            className="w-12 h-12 rounded-[50%] object-cover"
+          />
+        </div>
+
         {/* Grupo superior de navegación centrado */}
         <div className="flex-1 flex items-center">
           <div className="flex flex-col items-center gap-4 bg-card p-3 border" style={{ borderRadius: '50px', borderColor: '#eeeeee' }}>
@@ -202,7 +226,11 @@ function AdminContent() {
           <div className="flex items-center gap-2 bg-card p-2 border" style={{ borderRadius: '50px', borderColor: '#eeeeee' }}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button className="flex items-center justify-center w-10 h-10 transition-colors hover:bg-primary/10 [&:hover>svg]:text-primary relative cursor-pointer" style={{ borderRadius: '50px' }}>
+                <button
+                  onClick={() => setShowNotifications(true)}
+                  className="flex items-center justify-center w-10 h-10 transition-colors hover:bg-primary/10 [&:hover>svg]:text-primary relative cursor-pointer"
+                  style={{ borderRadius: '50px' }}
+                >
                   <Bell className="w-6 h-6" />
                   <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full"></span>
                 </button>
@@ -214,7 +242,11 @@ function AdminContent() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <button className="flex items-center justify-center w-10 h-10 transition-colors hover:bg-primary/10 [&:hover>svg]:text-primary cursor-pointer" style={{ borderRadius: '50px' }}>
+                <button
+                  onClick={handleSignOut}
+                  className="flex items-center justify-center w-10 h-10 transition-colors hover:bg-primary/10 [&:hover>svg]:text-primary cursor-pointer"
+                  style={{ borderRadius: '50px' }}
+                >
                   <LogOut className="w-6 h-6" />
                 </button>
               </TooltipTrigger>
@@ -235,6 +267,12 @@ function AdminContent() {
       <SettingsModal
         open={showSettingsModal}
         onOpenChange={setShowSettingsModal}
+      />
+
+      {/* Notifications Sheet */}
+      <NotificationsSheet
+        open={showNotifications}
+        onOpenChange={setShowNotifications}
       />
     </div>
   )

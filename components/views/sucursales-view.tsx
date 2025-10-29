@@ -37,7 +37,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Search, Plus, Phone, MapPin, Users, Home, MoreVertical, QrCode, Ban, Trash2, Download, Printer } from "lucide-react"
+import { Search, Plus, Phone, MapPin, Users, Home, MoreVertical, QrCode, Ban, Trash2, Download, Printer, Building2 } from "lucide-react"
 import { useState, useMemo, useEffect, useRef } from "react"
 import { sucursalesData, Sucursal } from "@/lib/sucursales-data"
 import { useNavigation } from "@/contexts/navigation-context"
@@ -288,8 +288,25 @@ export function SucursalesView() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">No se encontraron sucursales.</p>
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="w-20 h-20 rounded-full bg-primary/5 flex items-center justify-center mb-6">
+              <Building2 className="w-10 h-10 text-primary/40" />
+            </div>
+            <h3 className="text-xl font-semibold text-foreground mb-2">
+              {searchTerm ? "No se encontraron sucursales" : "Aún no tienes sucursales"}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-6 max-w-md text-center">
+              {searchTerm
+                ? "Intenta ajustar tus criterios de búsqueda"
+                : "Crea tu primera sucursal para empezar a gestionar tu negocio"
+              }
+            </p>
+            {!searchTerm && (
+              <PrimaryButton onClick={() => setIsSheetOpen(true)}>
+                <Plus className="mr-2 h-5 w-5" />
+                Crear primera sucursal
+              </PrimaryButton>
+            )}
           </div>
         )}
       </div>

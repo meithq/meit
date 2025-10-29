@@ -45,7 +45,7 @@ const clientesEjemplo: Cliente[] = [
   {
     id: "1",
     nombre: "Juan Pérez",
-    telefono: "+1 234 567 8900",
+    telefono: "+58 412-1234567",
     puntos: 450,
     giftCards: 2,
     estado: "activo"
@@ -53,7 +53,7 @@ const clientesEjemplo: Cliente[] = [
   {
     id: "2",
     nombre: "María García",
-    telefono: "+1 234 567 8901",
+    telefono: "+58 414-9876543",
     puntos: 320,
     giftCards: 1,
     estado: "activo"
@@ -61,7 +61,7 @@ const clientesEjemplo: Cliente[] = [
   {
     id: "3",
     nombre: "Carlos López",
-    telefono: "+1 234 567 8902",
+    telefono: "+58 424-5551234",
     puntos: 180,
     giftCards: 0,
     estado: "activo"
@@ -69,7 +69,7 @@ const clientesEjemplo: Cliente[] = [
   {
     id: "4",
     nombre: "Ana Martínez",
-    telefono: "+1 234 567 8903",
+    telefono: "+58 416-7778888",
     puntos: 560,
     giftCards: 3,
     estado: "activo"
@@ -77,7 +77,7 @@ const clientesEjemplo: Cliente[] = [
   {
     id: "5",
     nombre: "Pedro Rodríguez",
-    telefono: "+1 234 567 8904",
+    telefono: "+58 412-3334444",
     puntos: 90,
     giftCards: 0,
     estado: "inactivo"
@@ -122,6 +122,8 @@ export function POSView() {
   const [showPinModal, setShowPinModal] = useState(false)
   const [pin, setPin] = useState(["", "", "", ""])
   const pinInputsRef = useRef<(HTMLInputElement | null)[]>([])
+  const [modalState, setModalState] = useState<"input" | "loading" | "success">("input")
+  const [progress, setProgress] = useState(0)
 
   const filteredClientes = searchQuery
     ? clientesEjemplo.filter(
@@ -200,16 +202,49 @@ export function POSView() {
 
   const handleAsignarPuntos = () => {
     setShowPinModal(true)
+    setModalState("input")
+    setProgress(0)
   }
 
-  const handleConfirmarAsignacion = () => {
+  const handleConfirmarAsignacion = async () => {
     const pinCompleto = pin.join("")
     if (pinCompleto.length === 4) {
-      // Aquí iría la lógica de verificación del PIN
-      console.log("PIN ingresado:", pinCompleto)
-      // Por ahora solo cerramos el modal
-      setShowPinModal(false)
-      setPin(["", "", "", ""])
+      // Cambiar a estado loading
+      setModalState("loading")
+      setProgress(0)
+
+      // Simular progreso
+      const progressInterval = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 100) {
+            clearInterval(progressInterval)
+            return 100
+          }
+          return prev + 10
+        })
+      }, 100)
+
+      // Simular llamada API
+      setTimeout(() => {
+        clearInterval(progressInterval)
+        setProgress(100)
+
+        // Cambiar a estado success
+        setTimeout(() => {
+          setModalState("success")
+          console.log("PIN ingresado:", pinCompleto)
+          console.log("Puntos asignados:", totalPuntos)
+
+          // Cerrar modal después de 2 segundos
+          setTimeout(() => {
+            setShowPinModal(false)
+            setModalState("input")
+            setPin(["", "", "", ""])
+            setProgress(0)
+            handleLimpiar()
+          }, 2000)
+        }, 300)
+      }, 1000)
     }
   }
 
@@ -604,74 +639,141 @@ export function POSView() {
       </div>
 
       {/* Modal de confirmación con PIN */}
-      <Dialog open={showPinModal} onOpenChange={setShowPinModal}>
+      <Dialog open={showPinModal} onOpenChange={(open) => {
+        if (!open && modalState !== "loading") {
+          setShowPinModal(false)
+          setPin(["", "", "", ""])
+          setModalState("input")
+          setProgress(0)
+        }
+      }}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Confirmar Asignación de Puntos</DialogTitle>
-            <DialogDescription>
-              Ingresa tu PIN de 4 dígitos para confirmar la asignación de {totalPuntos} puntos
-            </DialogDescription>
-          </DialogHeader>
+          {modalState === "input" && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Confirmar Asignación de Puntos</DialogTitle>
+                <DialogDescription>
+                  Ingresa tu PIN de 4 dígitos para confirmar la asignación de {totalPuntos} puntos
+                </DialogDescription>
+              </DialogHeader>
 
-          <div className="py-6">
-            {/* Inputs OTP */}
-            <div className="flex justify-center gap-3 mb-6">
-              {pin.map((digit, index) => (
-                <input
-                  key={index}
-                  ref={(el) => {
-                    pinInputsRef.current[index] = el
+              <div className="py-6">
+                {/* Inputs OTP */}
+                <div className="flex justify-center gap-3 mb-6">
+                  {pin.map((digit, index) => (
+                    <input
+                      key={index}
+                      ref={(el) => {
+                        pinInputsRef.current[index] = el
+                      }}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handlePinChange(index, e.target.value)}
+                      onKeyDown={(e) => handlePinKeyDown(index, e)}
+                      className="w-16 h-16 text-center text-2xl font-bold border-2 rounded-[16px] focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                      style={{ borderColor: digit ? 'var(--primary)' : '#eeeeee' }}
+                    />
+                  ))}
+                </div>
+
+                {/* Resumen */}
+                {cliente && (
+                  <div className="p-4 rounded-[20px] bg-muted space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Cliente:</span>
+                      <span className="font-medium">{cliente.nombre}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Retos seleccionados:</span>
+                      <span className="font-medium">{selectedRetos.length}</span>
+                    </div>
+                    <div className="flex justify-between text-sm pt-2 border-t border-border">
+                      <span className="text-muted-foreground">Puntos a asignar:</span>
+                      <span className="font-bold text-primary">+{totalPuntos}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <SecondaryButton
+                  className="flex-1"
+                  onClick={() => {
+                    setShowPinModal(false)
+                    setPin(["", "", "", ""])
+                    setModalState("input")
+                    setProgress(0)
                   }}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={digit}
-                  onChange={(e) => handlePinChange(index, e.target.value)}
-                  onKeyDown={(e) => handlePinKeyDown(index, e)}
-                  className="w-16 h-16 text-center text-2xl font-bold border-2 rounded-[16px] focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                  style={{ borderColor: digit ? 'var(--primary)' : '#eeeeee' }}
-                />
-              ))}
-            </div>
+                >
+                  Cancelar
+                </SecondaryButton>
+                <PrimaryButton
+                  className="flex-1"
+                  onClick={handleConfirmarAsignacion}
+                  disabled={pin.some((digit) => !digit)}
+                >
+                  <Check className="mr-2 h-5 w-5" />
+                  Confirmar
+                </PrimaryButton>
+              </div>
+            </>
+          )}
 
-            {/* Resumen */}
-            {cliente && (
-              <div className="p-4 rounded-[20px] bg-muted space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Cliente:</span>
-                  <span className="font-medium">{cliente.nombre}</span>
+          {modalState === "loading" && (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6 relative">
+                <div className="absolute inset-0 rounded-full border-4 border-primary/20"></div>
+                <div
+                  className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin"
+                  style={{ animationDuration: '1s' }}
+                ></div>
+                <Gift className="w-10 h-10 text-primary" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Procesando...</h3>
+              <p className="text-sm text-muted-foreground mb-6 text-center">
+                Asignando {totalPuntos} puntos a {cliente?.nombre}
+              </p>
+
+              {/* Progress bar */}
+              <div className="w-full max-w-xs">
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all duration-300 ease-out"
+                    style={{ width: `${progress}%` }}
+                  ></div>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Retos seleccionados:</span>
-                  <span className="font-medium">{selectedRetos.length}</span>
+                <p className="text-xs text-center text-muted-foreground mt-2">
+                  {progress}%
+                </p>
+              </div>
+            </div>
+          )}
+
+          {modalState === "success" && (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mb-6">
+                <Check className="w-10 h-10 text-green-600" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">¡Puntos asignados!</h3>
+              <p className="text-sm text-muted-foreground text-center">
+                Se han asignado {totalPuntos} puntos a {cliente?.nombre}
+              </p>
+              <div className="mt-4 p-4 rounded-[20px] bg-green-50 border border-green-200 w-full max-w-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-green-800">Puntos anteriores:</span>
+                  <span className="text-sm font-medium text-green-900">{cliente?.puntos}</span>
                 </div>
-                <div className="flex justify-between text-sm pt-2 border-t border-border">
-                  <span className="text-muted-foreground">Puntos a asignar:</span>
-                  <span className="font-bold text-primary">+{totalPuntos}</span>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-sm text-green-800">Puntos nuevos:</span>
+                  <span className="text-lg font-bold text-green-600">
+                    {cliente ? cliente.puntos + totalPuntos : 0}
+                  </span>
                 </div>
               </div>
-            )}
-          </div>
-
-          <div className="flex gap-3">
-            <SecondaryButton
-              className="flex-1"
-              onClick={() => {
-                setShowPinModal(false)
-                setPin(["", "", "", ""])
-              }}
-            >
-              Cancelar
-            </SecondaryButton>
-            <PrimaryButton
-              className="flex-1"
-              onClick={handleConfirmarAsignacion}
-              disabled={pin.some((digit) => !digit)}
-            >
-              <Check className="mr-2 h-5 w-5" />
-              Confirmar
-            </PrimaryButton>
-          </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

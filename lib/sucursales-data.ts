@@ -55,31 +55,4 @@ export const sucursalesData: Sucursal[] = [
     empleados: 14,
     estado: "activa"
   },
-  {
-    id: "6",
-    nombre: "Sucursal La Candelaria",
-    codigo: "BRANCH_3f4e5d6c",
-    direccion: "Esquina de La Candelaria, Local 3",
-    telefono: "+58 212-6789012",
-    empleados: 9,
-    estado: "activa"
-  },
-  {
-    id: "7",
-    nombre: "Sucursal Chacao",
-    codigo: "BRANCH_8b9a0c1d",
-    direccion: "Av. Francisco de Miranda, Torre Ejecutiva",
-    telefono: "+58 212-7890123",
-    empleados: 16,
-    estado: "activa"
-  },
-  {
-    id: "8",
-    nombre: "Sucursal Los Palos Grandes",
-    codigo: "BRANCH_5e6f7g8h",
-    direccion: "Av. Andrés Bello, Local 78",
-    telefono: "+58 212-8901234",
-    empleados: 11,
-    estado: "activa"
-  },
 ]

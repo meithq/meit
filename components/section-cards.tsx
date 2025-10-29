@@ -39,15 +39,15 @@ export function SectionCards() {
             1,890
           </CardTitle>
           <CardAction>
-            <Badge variant="outline" className="border-red-500 text-red-600 bg-red-50 dark:bg-red-950 dark:text-red-400">
-              <IconTrendingDown />
-              -15.3%
+            <Badge variant="outline" className="border-green-500 text-green-600 bg-green-50 dark:bg-green-950 dark:text-green-400">
+              <IconTrendingUp />
+              +8.2%
             </Badge>
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
           <div className="line-clamp-1 flex gap-2 font-medium">
-            Bajada del 15.3% este período <IconTrendingDown className="size-4" />
+            Incremento este mes <IconTrendingUp className="size-4" />
           </div>
         </CardFooter>
       </Card>

@@ -106,8 +106,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <a href="#">
-                <Zap className="!size-5" />
+              <a href="#" className="flex items-center gap-3">
+                <img
+                  src="https://yhfmxwleuufwueypmvgm.supabase.co/storage/v1/object/public/adminapp/PHOTO-2025-10-28-14-22-32.jpg"
+                  alt="Meit Logo"
+                  className="!size-8 rounded-[50%] object-cover"
+                />
                 <span className="text-base font-semibold">Meit</span>
               </a>
             </SidebarMenuButton>

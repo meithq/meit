@@ -30,6 +30,7 @@ type SettingsSection = "negocio" | "puntos" | "whatsapp" | "equipo"
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>("negocio")
+  const [codigoArea, setCodigoArea] = useState("414")
 
   const menuItems = [
     { id: "negocio" as SettingsSection, label: "Negocio", icon: Building2 },
@@ -78,10 +79,28 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
               <div className="flex flex-col gap-2">
                 <Label htmlFor="telefono">Teléfono/WhatsApp</Label>
-                <FormInput
-                  id="telefono"
-                  placeholder="Ej: +1 234 567 8900"
-                />
+                <div className="flex gap-2">
+                  <div className="w-32">
+                    <FormSelect
+                      value={codigoArea}
+                      onValueChange={setCodigoArea}
+                      placeholder="Código"
+                      options={[
+                        { value: "414", label: "0414" },
+                        { value: "424", label: "0424" },
+                        { value: "416", label: "0416" },
+                        { value: "426", label: "0426" },
+                        { value: "412", label: "0412" },
+                        { value: "422", label: "0422" },
+                      ]}
+                    />
+                  </div>
+                  <FormInput
+                    id="telefono"
+                    placeholder="Ej: 1234567"
+                    className="flex-1"
+                  />
+                </div>
               </div>
 
               <div className="flex flex-col gap-2">

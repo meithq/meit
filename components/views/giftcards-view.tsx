@@ -28,7 +28,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Home, Settings, Gift, TrendingUp, DollarSign, Percent, CheckCircle, Calendar, User, CreditCard, X } from "lucide-react"
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useNavigation } from "@/contexts/navigation-context"
 
 interface GiftCard {
@@ -46,7 +46,7 @@ const giftCardEjemplo: GiftCard = {
   id: "1",
   codigo: "GC-2024-8754",
   cliente: "María García",
-  telefono: "+1 234 567 8901",
+  telefono: "+58 412-1234567",
   valor: 500,
   fechaEmision: "2024-01-15",
   vencimiento: "2024-12-31",
@@ -58,7 +58,7 @@ const giftCardsData: GiftCard[] = [
     id: "1",
     codigo: "GC-2024-8754",
     cliente: "María García",
-    telefono: "+1 234 567 8901",
+    telefono: "+58 412-1234567",
     valor: 500,
     fechaEmision: "2024-01-15",
     vencimiento: "2024-12-31",
@@ -68,7 +68,7 @@ const giftCardsData: GiftCard[] = [
     id: "2",
     codigo: "GC-2024-8755",
     cliente: "Juan Pérez",
-    telefono: "+1 234 567 8900",
+    telefono: "+58 414-9876543",
     valor: 300,
     fechaEmision: "2024-02-10",
     vencimiento: "2025-02-10",
@@ -78,7 +78,7 @@ const giftCardsData: GiftCard[] = [
     id: "3",
     codigo: "GC-2024-8756",
     cliente: "Carlos López",
-    telefono: "+1 234 567 8902",
+    telefono: "+58 424-5551234",
     valor: 250,
     fechaEmision: "2024-01-20",
     vencimiento: "2024-07-20",
@@ -88,7 +88,7 @@ const giftCardsData: GiftCard[] = [
     id: "4",
     codigo: "GC-2024-8757",
     cliente: "Ana Martínez",
-    telefono: "+1 234 567 8903",
+    telefono: "+58 416-7778888",
     valor: 400,
     fechaEmision: "2023-12-01",
     vencimiento: "2024-06-01",
@@ -98,7 +98,7 @@ const giftCardsData: GiftCard[] = [
     id: "5",
     codigo: "GC-2024-8758",
     cliente: "Pedro Rodríguez",
-    telefono: "+1 234 567 8904",
+    telefono: "+58 412-3334444",
     valor: 200,
     fechaEmision: "2024-03-05",
     vencimiento: "2025-03-05",
@@ -108,7 +108,7 @@ const giftCardsData: GiftCard[] = [
     id: "6",
     codigo: "GC-2024-8759",
     cliente: "Laura Sánchez",
-    telefono: "+1 234 567 8905",
+    telefono: "+58 414-2223333",
     valor: 350,
     fechaEmision: "2024-02-15",
     vencimiento: "2024-08-15",
@@ -118,7 +118,7 @@ const giftCardsData: GiftCard[] = [
     id: "7",
     codigo: "GC-2024-8760",
     cliente: "Diego Torres",
-    telefono: "+1 234 567 8906",
+    telefono: "+58 424-6667777",
     valor: 150,
     fechaEmision: "2023-11-10",
     vencimiento: "2024-05-10",
@@ -132,7 +132,61 @@ export function GiftCardsView() {
   const [giftCardValidada, setGiftCardValidada] = useState<GiftCard | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [showConfigSheet, setShowConfigSheet] = useState(false)
+  const [showPinModal, setShowPinModal] = useState(false)
   const [activeTab, setActiveTab] = useState("activas")
+  const [pin, setPin] = useState(["", "", "", ""])
+  const pinInputsRef = useRef<(HTMLInputElement | null)[]>([])
+
+  useEffect(() => {
+    // Auto-focus en el primer input del PIN cuando se abre el modal
+    if (showPinModal && pinInputsRef.current[0]) {
+      pinInputsRef.current[0].focus()
+    }
+  }, [showPinModal])
+
+  const handlePinChange = (index: number, value: string) => {
+    if (value.length <= 1 && /^\d*$/.test(value)) {
+      const newPin = [...pin]
+      newPin[index] = value
+      setPin(newPin)
+
+      // Auto-avanzar al siguiente input
+      if (value && index < 3) {
+        pinInputsRef.current[index + 1]?.focus()
+      }
+    }
+  }
+
+  const handlePinKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && !pin[index] && index > 0) {
+      pinInputsRef.current[index - 1]?.focus()
+    }
+  }
+
+  const handleCancelarPin = () => {
+    setShowPinModal(false)
+    setPin(["", "", "", ""])
+  }
+
+  const handleConfirmarRedencion = () => {
+    const pinCompleto = pin.join("")
+
+    if (pinCompleto.length !== 4) {
+      console.log("PIN incompleto")
+      return
+    }
+
+    // Aquí validarías el PIN con el backend
+    console.log("Validando PIN:", pinCompleto)
+    console.log("Redimiendo gift card:", giftCardValidada?.codigo)
+
+    // Cerrar ambos modales y limpiar estados
+    setShowPinModal(false)
+    setShowModal(false)
+    setGiftCardValidada(null)
+    setCodigoGiftCard("")
+    setPin(["", "", "", ""])
+  }
 
   // Estados de configuración
   const [puntosRequeridos, setPuntosRequeridos] = useState(100)
@@ -176,11 +230,8 @@ export function GiftCardsView() {
 
   const handleRedimir = () => {
     if (giftCardValidada) {
-      console.log("Redimiendo gift card:", giftCardValidada.codigo)
-      // Aquí iría la lógica de redención
-      setShowModal(false)
-      setGiftCardValidada(null)
-      setCodigoGiftCard("")
+      // Mostrar el modal del PIN en lugar de redimir directamente
+      setShowPinModal(true)
     }
   }
 
@@ -205,7 +256,7 @@ export function GiftCardsView() {
   const metricas = [
     {
       titulo: "Activas",
-      valor: "248",
+      valor: countActivas.toString(),
       icon: Gift,
       descripcion: "Gift cards activas",
       tendencia: "+12%",
@@ -213,7 +264,7 @@ export function GiftCardsView() {
     },
     {
       titulo: "Redimidas este mes",
-      valor: "87",
+      valor: countRedimidas.toString(),
       icon: TrendingUp,
       descripcion: "Canjes en el mes",
       tendencia: "+8%",
@@ -221,7 +272,7 @@ export function GiftCardsView() {
     },
     {
       titulo: "Valor en circulación",
-      valor: "$45,230",
+      valor: `$${giftCardsData.filter(gc => gc.estado === "activa").reduce((acc, gc) => acc + gc.valor, 0).toLocaleString()}`,
       icon: DollarSign,
       descripcion: "Total disponible",
       tendencia: "+15%",
@@ -229,7 +280,7 @@ export function GiftCardsView() {
     },
     {
       titulo: "Tasa de Redención",
-      valor: "68%",
+      valor: `${Math.round((countRedimidas / giftCardsData.length) * 100)}%`,
       icon: Percent,
       descripcion: "Últimos 30 días",
       tendencia: "+5%",
@@ -658,6 +709,54 @@ export function GiftCardsView() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmación con PIN */}
+      <Dialog open={showPinModal} onOpenChange={setShowPinModal}>
+        <DialogContent className="max-w-md">
+          <DialogTitle className="sr-only">Confirmar con PIN</DialogTitle>
+          <div className="flex flex-col items-center py-6">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <CheckCircle className="w-8 h-8 text-primary" />
+            </div>
+            <h2 className="text-2xl font-bold mb-2 text-center">Confirmar redención</h2>
+            <p className="text-sm text-muted-foreground mb-8 text-center">
+              Ingresa tu PIN de 4 dígitos para confirmar la redención de la gift card
+            </p>
+
+            {/* Inputs de PIN */}
+            <div className="flex gap-3 mb-8">
+              {[0, 1, 2, 3].map((index) => (
+                <input
+                  key={index}
+                  ref={(el) => (pinInputsRef.current[index] = el)}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={pin[index]}
+                  onChange={(e) => handlePinChange(index, e.target.value)}
+                  onKeyDown={(e) => handlePinKeyDown(index, e)}
+                  className="w-16 h-16 text-center text-2xl font-bold border-2 rounded-2xl focus:border-primary focus:outline-none transition-colors"
+                  style={{ borderColor: pin[index] ? "#84dcdb" : "#e5e7eb" }}
+                />
+              ))}
+            </div>
+
+            {/* Botones */}
+            <div className="flex gap-3 w-full">
+              <SecondaryButton className="flex-1" onClick={handleCancelarPin}>
+                Cancelar
+              </SecondaryButton>
+              <PrimaryButton
+                className="flex-1"
+                onClick={handleConfirmarRedencion}
+                disabled={pin.some((digit) => !digit)}
+              >
+                Confirmar
+              </PrimaryButton>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

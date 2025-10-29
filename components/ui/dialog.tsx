@@ -48,10 +48,12 @@ function DialogContent({
   children,
   showHelpButton,
   onHelpClick,
+  hideCloseButton,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showHelpButton?: boolean
   onHelpClick?: () => void
+  hideCloseButton?: boolean
 }) {
   return (
     <DialogPortal>
@@ -70,21 +72,23 @@ function DialogContent({
         {...props}
       >
         {children}
-        <div className="absolute right-4 top-4 flex gap-2">
-          {showHelpButton && onHelpClick && (
-            <button
-              onClick={onHelpClick}
-              className="rounded-full bg-white border shadow-sm w-10 h-10 flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity cursor-pointer focus:outline-none"
-            >
-              <span className="text-sm font-bold">?</span>
-              <span className="sr-only">Ayuda</span>
-            </button>
-          )}
-          <DialogPrimitive.Close className="rounded-full bg-white border shadow-sm w-10 h-10 flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity cursor-pointer focus:outline-none">
-            <XIcon className="h-4 w-4" />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        </div>
+        {!hideCloseButton && (
+          <div className="absolute right-4 top-4 flex gap-2">
+            {showHelpButton && onHelpClick && (
+              <button
+                onClick={onHelpClick}
+                className="rounded-full bg-white border shadow-sm w-10 h-10 flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity cursor-pointer focus:outline-none"
+              >
+                <span className="text-sm font-bold">?</span>
+                <span className="sr-only">Ayuda</span>
+              </button>
+            )}
+            <DialogPrimitive.Close className="rounded-full bg-white border shadow-sm w-10 h-10 flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity cursor-pointer focus:outline-none">
+              <XIcon className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </DialogPrimitive.Close>
+          </div>
+        )}
       </DialogPrimitive.Content>
     </DialogPortal>
   )

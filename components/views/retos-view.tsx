@@ -33,6 +33,7 @@ interface Reto {
   estado: "activo" | "pausado" | "finalizado"
 }
 
+// Datos de ejemplo
 const retosData: Reto[] = [
   {
     id: "1",
@@ -40,8 +41,8 @@ const retosData: Reto[] = [
     descripcion: "Compra mínima de $10 en Panadería Aena Labs",
     puntos: 20,
     meta: 2000,
-    completadosHoy: 0,
-    porcentaje: 0,
+    completadosHoy: 8,
+    porcentaje: 45,
     estado: "activo"
   },
   {
@@ -138,8 +139,9 @@ export function RetosView() {
 
       {/* Cards Grid */}
       <div className="px-4 lg:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {retosData.map((reto) => (
+        {retosData.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {retosData.map((reto) => (
             <Card key={reto.id} className="p-4 shadow-none relative" style={{ borderRadius: '30px', border: '1px solid #eeeeee' }}>
               {/* Badge de estado en esquina inferior derecha */}
               <div className="absolute bottom-4 right-4">
@@ -225,6 +227,28 @@ export function RetosView() {
             </Card>
           ))}
         </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="w-20 h-20 rounded-full bg-primary/5 flex items-center justify-center mb-6">
+              <Trophy className="w-10 h-10 text-primary/40" />
+            </div>
+            <h3 className="text-xl font-semibold text-foreground mb-2">
+              {searchTerm ? "No se encontraron retos" : "Aún no tienes retos"}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-6 max-w-md text-center">
+              {searchTerm
+                ? "Intenta ajustar tus criterios de búsqueda"
+                : "Crea tu primer reto para motivar a tus clientes a participar"
+              }
+            </p>
+            {!searchTerm && (
+              <PrimaryButton>
+                <Plus className="mr-2 h-5 w-5" />
+                Crear primer reto
+              </PrimaryButton>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

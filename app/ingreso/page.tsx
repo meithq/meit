@@ -1,6 +1,26 @@
 import { GalleryVerticalEnd } from "lucide-react"
 
 import { LoginForm } from "@/components/login-form"
+import { AuthBackground } from "@/components/auth-background"
+
+const slides = [
+  {
+    title: "Gestiona tu fidelidad",
+    description: "Administra puntos, gift cards y clientes desde cualquier lugar con MEIT."
+  },
+  {
+    title: "Recompensa a tus clientes",
+    description: "Crea retos personalizados y aumenta la participación de tu programa de lealtad."
+  },
+  {
+    title: "Analítica en tiempo real",
+    description: "Toma decisiones inteligentes con datos actualizados de tu negocio."
+  },
+  {
+    title: "WhatsApp integrado",
+    description: "Conecta con tus clientes directamente a través de mensajes automáticos."
+  }
+]
 
 export default function LoginPage() {
   return (
@@ -20,13 +40,7 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
-      <div className="bg-muted relative hidden lg:block">
-        <img
-          src="https://images.unsplash.com/photo-1715635846028-f162249377c8?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=1287"
-          alt="Background"
-          className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
-        />
-      </div>
+      <AuthBackground slides={slides} />
     </div>
   )
 }
