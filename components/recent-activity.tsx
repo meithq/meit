@@ -2,58 +2,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Gift, Star, Users, CreditCard } from "lucide-react"
 
-const activities = [
-  {
-    id: 1,
-    icon: Star,
-    iconColor: "bg-primary/10",
-    person: "María González",
-    description: "Puntos asignados",
-    points: "+25 puntos",
-    type: "points_assigned",
-    time: "hace 5 minutos"
-  },
-  {
-    id: 2,
-    icon: Gift,
-    iconColor: "bg-primary/10",
-    person: "Carlos Rodríguez",
-    description: "Gift card generada",
-    points: null,
-    type: "gift_card",
-    time: "hace 12 minutos"
-  },
-  {
-    id: 3,
-    icon: Users,
-    iconColor: "bg-primary/10",
-    person: "Ana Martínez",
-    description: "Check-in realizado",
-    points: null,
-    type: "check_in",
-    time: "hace 18 minutos"
-  },
-  {
-    id: 4,
-    icon: CreditCard,
-    iconColor: "bg-primary/10",
-    person: "Luis Fernández",
-    description: "Puntos canjeados",
-    points: "-50 puntos",
-    type: "points_redeemed",
-    time: "hace 25 minutos"
-  },
-  {
-    id: 5,
-    icon: Star,
-    iconColor: "bg-primary/10",
-    person: "Sofia López",
-    description: "Puntos asignados",
-    points: "+15 puntos",
-    type: "points_assigned",
-    time: "hace 32 minutos"
-  }
-]
+// Array vacío - cargar datos desde la base de datos
+const activities: Array<{
+  id: number
+  icon: any
+  iconColor: string
+  person: string
+  description: string
+  points: string | null
+  type: string
+  time: string
+}> = []
 
 export function RecentActivity() {
   return (

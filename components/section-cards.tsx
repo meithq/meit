@@ -17,12 +17,12 @@ export function SectionCards() {
         <CardHeader>
           <CardDescription>Check-ins hoy</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            127
+            0
           </CardTitle>
           <CardAction>
             <Badge variant="outline" className="border-green-500 text-green-600 bg-green-50 dark:bg-green-950 dark:text-green-400">
               <IconTrendingUp />
-              +12.5%
+              +0%
             </Badge>
           </CardAction>
         </CardHeader>
@@ -36,12 +36,12 @@ export function SectionCards() {
         <CardHeader>
           <CardDescription>Puntos asignados hoy</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            1,890
+            0
           </CardTitle>
           <CardAction>
             <Badge variant="outline" className="border-green-500 text-green-600 bg-green-50 dark:bg-green-950 dark:text-green-400">
               <IconTrendingUp />
-              +8.2%
+              +0%
             </Badge>
           </CardAction>
         </CardHeader>
@@ -55,12 +55,12 @@ export function SectionCards() {
         <CardHeader>
           <CardDescription>Clientes activos</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            1,234
+            0
           </CardTitle>
           <CardAction>
             <Badge variant="outline" className="border-green-500 text-green-600 bg-green-50 dark:bg-green-950 dark:text-green-400">
               <IconTrendingUp />
-              +15.3%
+              +0%
             </Badge>
           </CardAction>
         </CardHeader>
@@ -74,12 +74,12 @@ export function SectionCards() {
         <CardHeader>
           <CardDescription>Gift Cards generadas</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            89
+            0
           </CardTitle>
           <CardAction>
             <Badge variant="outline" className="border-green-500 text-green-600 bg-green-50 dark:bg-green-950 dark:text-green-400">
               <IconTrendingUp />
-              +22.1%
+              +0%
             </Badge>
           </CardAction>
         </CardHeader>

@@ -41,75 +41,11 @@ interface Reto {
   puntos: number
 }
 
-const clientesEjemplo: Cliente[] = [
-  {
-    id: "1",
-    nombre: "Juan Pérez",
-    telefono: "+58 412-1234567",
-    puntos: 450,
-    giftCards: 2,
-    estado: "activo"
-  },
-  {
-    id: "2",
-    nombre: "María García",
-    telefono: "+58 414-9876543",
-    puntos: 320,
-    giftCards: 1,
-    estado: "activo"
-  },
-  {
-    id: "3",
-    nombre: "Carlos López",
-    telefono: "+58 424-5551234",
-    puntos: 180,
-    giftCards: 0,
-    estado: "activo"
-  },
-  {
-    id: "4",
-    nombre: "Ana Martínez",
-    telefono: "+58 416-7778888",
-    puntos: 560,
-    giftCards: 3,
-    estado: "activo"
-  },
-  {
-    id: "5",
-    nombre: "Pedro Rodríguez",
-    telefono: "+58 412-3334444",
-    puntos: 90,
-    giftCards: 0,
-    estado: "inactivo"
-  }
-]
+// Array vacío - cargar datos desde la base de datos
+const clientesEjemplo: Cliente[] = []
 
-const retosDisponibles: Reto[] = [
-  {
-    id: "1",
-    titulo: "Reto Meit! Primera compra de $10!!",
-    descripcion: "Compra mínima de $10 en Panadería Aena Labs",
-    minimo: "$2000.00 USD",
-    tipo: "amount_min",
-    puntos: 20
-  },
-  {
-    id: "2",
-    titulo: "Reto Meit! Compra de $50",
-    descripcion: "Compra mínima de $50 en cualquier sucursal",
-    minimo: "$5000.00 USD",
-    tipo: "amount_min",
-    puntos: 100
-  },
-  {
-    id: "3",
-    titulo: "Reto Meit! Cliente frecuente",
-    descripcion: "Realiza 5 compras en el mes",
-    minimo: "5 compras",
-    tipo: "frequency",
-    puntos: 50
-  }
-]
+// Array vacío - cargar datos desde la base de datos
+const retosDisponibles: Reto[] = []
 
 export function POSView() {
   const { setView } = useNavigation()

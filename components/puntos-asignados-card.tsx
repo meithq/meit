@@ -13,28 +13,10 @@ import {
   ChartTooltipContent, 
 } from "@/components/ui/chart"
 
-const data7D = [
-  { day: "Lun", puntos: 150 },
-  { day: "Mar", puntos: 230 },
-  { day: "Mié", puntos: 180 },
-  { day: "Jue", puntos: 320 },
-  { day: "Vie", puntos: 280 },
-  { day: "Sáb", puntos: 200 },
-  { day: "Dom", puntos: 160 },
-]
-
-const data30D = [
-  { day: "Sem 1", puntos: 1250 },
-  { day: "Sem 2", puntos: 1480 },
-  { day: "Sem 3", puntos: 1120 },
-  { day: "Sem 4", puntos: 1670 },
-]
-
-const data90D = [
-  { day: "Mes 1", puntos: 5200 },
-  { day: "Mes 2", puntos: 6100 },
-  { day: "Mes 3", puntos: 4800 },
-]
+// Datos vacíos - cargar desde la base de datos
+const data7D: Array<{ day: string; puntos: number }> = []
+const data30D: Array<{ day: string; puntos: number }> = []
+const data90D: Array<{ day: string; puntos: number }> = []
 
 const chartConfig = {
   puntos: {

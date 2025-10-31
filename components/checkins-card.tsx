@@ -13,28 +13,10 @@ import {
   ChartTooltipContent, 
 } from "@/components/ui/chart"
 
-const data7D = [
-  { day: "Lun", checkins: 12 },
-  { day: "Mar", checkins: 19 },
-  { day: "Mié", checkins: 15 },
-  { day: "Jue", checkins: 25 },
-  { day: "Vie", checkins: 22 },
-  { day: "Sáb", checkins: 18 },
-  { day: "Dom", checkins: 14 },
-]
-
-const data30D = [
-  { day: "Sem 1", checkins: 85 },
-  { day: "Sem 2", checkins: 92 },
-  { day: "Sem 3", checkins: 78 },
-  { day: "Sem 4", checkins: 105 },
-]
-
-const data90D = [
-  { day: "Mes 1", checkins: 320 },
-  { day: "Mes 2", checkins: 380 },
-  { day: "Mes 3", checkins: 295 },
-]
+// Datos vacíos - cargar desde la base de datos
+const data7D: Array<{ day: string; checkins: number }> = []
+const data30D: Array<{ day: string; checkins: number }> = []
+const data90D: Array<{ day: string; checkins: number }> = []
 
 const chartConfig = {
   checkins: {

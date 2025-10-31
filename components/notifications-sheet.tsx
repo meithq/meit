@@ -25,56 +25,8 @@ interface Notification {
   read: boolean
 }
 
-const notificationsData: Notification[] = [
-  {
-    id: "1",
-    type: "success",
-    title: "Nuevo cliente registrado",
-    description: "María García se ha registrado en tu programa de fidelidad",
-    time: "2025-01-27T10:30:00",
-    read: false
-  },
-  {
-    id: "2",
-    type: "gift",
-    title: "Gift card canjeada",
-    description: "Carlos Pérez ha canjeado una gift card de $5",
-    time: "2025-01-27T09:15:00",
-    read: false
-  },
-  {
-    id: "3",
-    type: "achievement",
-    title: "Reto completado",
-    description: "15 clientes completaron el reto 'Primera compra de $10'",
-    time: "2025-01-26T18:45:00",
-    read: true
-  },
-  {
-    id: "4",
-    type: "info",
-    title: "Puntos asignados",
-    description: "Se asignaron 250 puntos a Juan Martínez",
-    time: "2025-01-26T16:20:00",
-    read: true
-  },
-  {
-    id: "5",
-    type: "success",
-    title: "Nueva sucursal activada",
-    description: "La sucursal 'Centro' ha sido activada exitosamente",
-    time: "2025-01-20T14:30:00",
-    read: true
-  },
-  {
-    id: "6",
-    type: "gift",
-    title: "Gift card generada",
-    description: "Se generó una nueva gift card para Ana López",
-    time: "2025-01-20T11:00:00",
-    read: true
-  }
-]
+// Array vacío - cargar datos desde la base de datos
+const notificationsData: Notification[] = []
 
 export function NotificationsSheet({ open, onOpenChange }: NotificationsSheetProps) {
   const [notifications, setNotifications] = useState(notificationsData)

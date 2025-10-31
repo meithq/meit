@@ -33,39 +33,8 @@ interface Reto {
   estado: "activo" | "pausado" | "finalizado"
 }
 
-// Datos de ejemplo
-const retosData: Reto[] = [
-  {
-    id: "1",
-    titulo: "Reto Meit! Primera compra de $10!!",
-    descripcion: "Compra mínima de $10 en Panadería Aena Labs",
-    puntos: 20,
-    meta: 2000,
-    completadosHoy: 8,
-    porcentaje: 45,
-    estado: "activo"
-  },
-  {
-    id: "2",
-    titulo: "Compra 3 productos",
-    descripcion: "Compra al menos 3 productos en una sola transacción",
-    puntos: 15,
-    meta: 1500,
-    completadosHoy: 5,
-    porcentaje: 33,
-    estado: "activo"
-  },
-  {
-    id: "3",
-    titulo: "Cliente frecuente",
-    descripcion: "Realiza 5 compras en el mes",
-    puntos: 50,
-    meta: 500,
-    completadosHoy: 2,
-    porcentaje: 60,
-    estado: "pausado"
-  }
-]
+// Array vacío - cargar datos desde la base de datos
+const retosData: Reto[] = []
 
 export function RetosView() {
   const { setView } = useNavigation()

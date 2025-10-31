@@ -42,89 +42,11 @@ interface GiftCard {
   estado: "activa" | "redimida" | "vencida"
 }
 
-const giftCardEjemplo: GiftCard = {
-  id: "1",
-  codigo: "GC-2024-8754",
-  cliente: "María García",
-  telefono: "+58 412-1234567",
-  valor: 500,
-  fechaEmision: "2024-01-15",
-  vencimiento: "2024-12-31",
-  estado: "activa"
-}
+// Datos de ejemplo - reemplazar con datos reales de la base de datos
+const giftCardEjemplo: GiftCard | null = null
 
-const giftCardsData: GiftCard[] = [
-  {
-    id: "1",
-    codigo: "GC-2024-8754",
-    cliente: "María García",
-    telefono: "+58 412-1234567",
-    valor: 500,
-    fechaEmision: "2024-01-15",
-    vencimiento: "2024-12-31",
-    estado: "activa"
-  },
-  {
-    id: "2",
-    codigo: "GC-2024-8755",
-    cliente: "Juan Pérez",
-    telefono: "+58 414-9876543",
-    valor: 300,
-    fechaEmision: "2024-02-10",
-    vencimiento: "2025-02-10",
-    estado: "activa"
-  },
-  {
-    id: "3",
-    codigo: "GC-2024-8756",
-    cliente: "Carlos López",
-    telefono: "+58 424-5551234",
-    valor: 250,
-    fechaEmision: "2024-01-20",
-    vencimiento: "2024-07-20",
-    estado: "redimida"
-  },
-  {
-    id: "4",
-    codigo: "GC-2024-8757",
-    cliente: "Ana Martínez",
-    telefono: "+58 416-7778888",
-    valor: 400,
-    fechaEmision: "2023-12-01",
-    vencimiento: "2024-06-01",
-    estado: "vencida"
-  },
-  {
-    id: "5",
-    codigo: "GC-2024-8758",
-    cliente: "Pedro Rodríguez",
-    telefono: "+58 412-3334444",
-    valor: 200,
-    fechaEmision: "2024-03-05",
-    vencimiento: "2025-03-05",
-    estado: "activa"
-  },
-  {
-    id: "6",
-    codigo: "GC-2024-8759",
-    cliente: "Laura Sánchez",
-    telefono: "+58 414-2223333",
-    valor: 350,
-    fechaEmision: "2024-02-15",
-    vencimiento: "2024-08-15",
-    estado: "redimida"
-  },
-  {
-    id: "7",
-    codigo: "GC-2024-8760",
-    cliente: "Diego Torres",
-    telefono: "+58 424-6667777",
-    valor: 150,
-    fechaEmision: "2023-11-10",
-    vencimiento: "2024-05-10",
-    estado: "vencida"
-  }
-]
+// Array vacío - cargar datos desde la base de datos
+const giftCardsData: GiftCard[] = []
 
 export function GiftCardsView() {
   const { setView } = useNavigation()
@@ -280,7 +202,7 @@ export function GiftCardsView() {
     },
     {
       titulo: "Tasa de Redención",
-      valor: `${Math.round((countRedimidas / giftCardsData.length) * 100)}%`,
+      valor: `${giftCardsData.length > 0 ? Math.round((countRedimidas / giftCardsData.length) * 100) : 0}%`,
       icon: Percent,
       descripcion: "Últimos 30 días",
       tendencia: "+5%",
