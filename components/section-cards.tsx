@@ -19,18 +19,7 @@ export function SectionCards() {
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
             0
           </CardTitle>
-          <CardAction>
-            <Badge variant="outline" className="border-green-500 text-green-600 bg-green-50 dark:bg-green-950 dark:text-green-400">
-              <IconTrendingUp />
-              +0%
-            </Badge>
-          </CardAction>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Incremento este mes <IconTrendingUp className="size-4" />
-          </div>
-        </CardFooter>
       </Card>
       <Card className="@container/card shadow-none" style={{ borderRadius: '30px', border: '1px solid #eeeeee' }}>
         <CardHeader>
@@ -38,18 +27,7 @@ export function SectionCards() {
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
             0
           </CardTitle>
-          <CardAction>
-            <Badge variant="outline" className="border-green-500 text-green-600 bg-green-50 dark:bg-green-950 dark:text-green-400">
-              <IconTrendingUp />
-              +0%
-            </Badge>
-          </CardAction>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Incremento este mes <IconTrendingUp className="size-4" />
-          </div>
-        </CardFooter>
       </Card>
       <Card className="@container/card shadow-none" style={{ borderRadius: '30px', border: '1px solid #eeeeee' }}>
         <CardHeader>
@@ -57,18 +35,7 @@ export function SectionCards() {
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
             0
           </CardTitle>
-          <CardAction>
-            <Badge variant="outline" className="border-green-500 text-green-600 bg-green-50 dark:bg-green-950 dark:text-green-400">
-              <IconTrendingUp />
-              +0%
-            </Badge>
-          </CardAction>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Excelente retención de usuarios <IconTrendingUp className="size-4" />
-          </div>
-        </CardFooter>
       </Card>
       <Card className="@container/card shadow-none" style={{ borderRadius: '30px', border: '1px solid #eeeeee' }}>
         <CardHeader>
@@ -76,18 +43,7 @@ export function SectionCards() {
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
             0
           </CardTitle>
-          <CardAction>
-            <Badge variant="outline" className="border-green-500 text-green-600 bg-green-50 dark:bg-green-950 dark:text-green-400">
-              <IconTrendingUp />
-              +0%
-            </Badge>
-          </CardAction>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Crecimiento constante <IconTrendingUp className="size-4" />
-          </div>
-        </CardFooter>
       </Card>
     </div>
   )

@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { PrimaryButton } from "@/components/ui/primary-button"
-import { Circle, CheckCircle2, Settings, Users, Gift, Building2 } from "lucide-react"
+import { Circle, CheckCircle2, Settings, Users, Gift, Building2, Trophy } from "lucide-react"
 import { useState, useEffect } from "react"
 import confetti from "canvas-confetti"
 
@@ -16,6 +16,8 @@ interface WelcomeModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   showConfetti?: boolean
+  onNavigateToConfig?: (tab: string) => void
+  onNavigateToRetos?: () => void
 }
 
 interface ChecklistItem {
@@ -26,7 +28,7 @@ interface ChecklistItem {
   completed: boolean
 }
 
-export function WelcomeModal({ open, onOpenChange, showConfetti = false }: WelcomeModalProps) {
+export function WelcomeModal({ open, onOpenChange, showConfetti = false, onNavigateToConfig, onNavigateToRetos }: WelcomeModalProps) {
   const [checklist, setChecklist] = useState<ChecklistItem[]>([
     {
       id: '1',
@@ -46,15 +48,26 @@ export function WelcomeModal({ open, onOpenChange, showConfetti = false }: Welco
       id: '3',
       title: 'Crea tu primer reto',
       description: 'Motiva a tus clientes con recompensas atractivas',
-      icon: Gift,
+      icon: Trophy,
       completed: false
     }
   ])
 
-  const toggleItem = (id: string) => {
-    setChecklist(prev => prev.map(item =>
-      item.id === id ? { ...item, completed: !item.completed } : item
-    ))
+  const handleStepClick = (id: string) => {
+    // Cerrar el modal de bienvenida
+    onOpenChange(false)
+
+    // Navegar según el paso clickeado
+    if (id === '1' && onNavigateToConfig) {
+      // Paso 1: Abrir modal de configuración en pestaña Negocio
+      onNavigateToConfig('negocio')
+    } else if (id === '2' && onNavigateToConfig) {
+      // Paso 2: Abrir modal de configuración en pestaña Puntos (Gift Cards)
+      onNavigateToConfig('puntos')
+    } else if (id === '3' && onNavigateToRetos) {
+      // Paso 3: Navegar a la vista de retos
+      onNavigateToRetos()
+    }
   }
 
   const completedCount = checklist.filter(item => item.completed).length
@@ -201,8 +214,8 @@ export function WelcomeModal({ open, onOpenChange, showConfetti = false }: Welco
               return (
                 <button
                   key={item.id}
-                  onClick={() => toggleItem(item.id)}
-                  className="w-full flex items-start gap-4 p-4 rounded-2xl border transition-all hover:border-primary/40 cursor-pointer text-left"
+                  onClick={() => handleStepClick(item.id)}
+                  className="w-full flex items-start gap-4 p-4 rounded-2xl border transition-all hover:border-primary/40 hover:bg-primary/5 cursor-pointer text-left"
                   style={{ borderColor: item.completed ? 'oklch(0.4545 0.1844 321.4624)' : '#eeeeee', backgroundColor: item.completed ? 'oklch(0.4545 0.1844 321.4624 / 0.05)' : '#fff' }}
                 >
                   <div className="flex-shrink-0 mt-0.5">

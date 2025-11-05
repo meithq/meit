@@ -1,0 +1,486 @@
+import { NextRequest, NextResponse } from 'next/server'
+import {
+  type EvolutionWebhookPayload,
+  extractPhoneNumber,
+  isUserMessage,
+  extractMessageText,
+} from '@/lib/types/evolution-api'
+import { getOrCreateCustomer, updateCustomer, getCustomerByPhone } from '@/lib/supabase/customers'
+import {
+  sendWelcomeMessage,
+  sendBusinessConfirmation,
+  sendHelpMessage,
+  EvolutionAPIClient,
+  getEvolutionClient,
+} from '@/lib/evolution-api/client'
+import { parseCheckInMessage } from '@/lib/whatsapp-qr'
+import { getOrCreateCustomerBusiness, getBusinessesByCustomer } from '@/lib/supabase/customer-businesses'
+import { createServerClient } from '@/lib/supabase/server-client'
+
+/**
+ * Webhook para recibir mensajes de Evolution API
+ * POST /api/webhooks/whatsapp
+ */
+export async function POST(request: NextRequest) {
+  try {
+    // 1. Verificar API Key (seguridad)
+    const apiKey = request.headers.get('apikey')
+    const expectedApiKey = process.env.EVOLUTION_API_KEY
+
+    if (!expectedApiKey || apiKey !== expectedApiKey) {
+      console.error('Invalid API key')
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    // 2. Parsear el payload del webhook
+    const payload: EvolutionWebhookPayload = await request.json()
+
+    console.log('Webhook received:', {
+      event: payload.event,
+      instance: payload.instance,
+      sender: payload.sender,
+    })
+
+    // 3. Validar que sea un evento de mensaje
+    if (payload.event !== 'messages.upsert') {
+      return NextResponse.json({
+        message: 'Event ignored',
+        event: payload.event,
+      })
+    }
+
+    // 4. Validar que el mensaje no sea del bot (fromMe = false)
+    if (payload.data.key.fromMe) {
+      console.log('Message from bot, ignoring')
+      return NextResponse.json({
+        message: 'Message from bot, ignored',
+      })
+    }
+
+    // 5. Validar que sea un mensaje de usuario individual (no grupo)
+    const remoteJid = payload.data.key.remoteJid
+    if (!isUserMessage(remoteJid)) {
+      console.log('Not a user message, ignoring')
+      return NextResponse.json({
+        message: 'Not a user message, ignored',
+      })
+    }
+
+    // 6. Extraer información del cliente
+    const phone = extractPhoneNumber(remoteJid)
+    const name = payload.data.pushName || 'Usuario'
+    const messageText = extractMessageText(payload.data.message)
+
+    console.log('Processing message:', {
+      phone,
+      name,
+      message: messageText,
+    })
+
+    // 7. Obtener o crear el cliente en la base de datos
+    const { customer, isNew } = await getOrCreateCustomer(phone, name)
+
+    // 8. Enrutar mensaje al handler apropiado
+    await routeMessage({
+      phone,
+      message: messageText || '',
+      customerName: name,
+      customer,
+      isNew,
+    })
+
+    // 9. Responder con éxito
+    return NextResponse.json({
+      success: true,
+      customer: {
+        id: customer.id,
+        phone: customer.phone,
+        name: customer.name,
+        total_points: customer.total_points,
+      },
+      isNew,
+      message: 'Message processed successfully',
+    })
+  } catch (error) {
+    console.error('Error processing webhook:', error)
+    return NextResponse.json(
+      {
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * Contexto del mensaje para handlers
+ */
+interface MessageContext {
+  phone: string
+  message: string
+  customerName: string
+  customer: any
+  isNew: boolean
+}
+
+/**
+ * Enruta el mensaje al handler apropiado según el contenido
+ */
+async function routeMessage(context: MessageContext): Promise<void> {
+  const lowerMessage = context.message.toLowerCase().trim()
+
+  // Detectar check-in primero (prioridad máxima)
+  const checkInInfo = parseCheckInMessage(context.message)
+  if (checkInInfo.isCheckIn && checkInInfo.businessName && checkInInfo.branchName) {
+    await handleCheckIn(context, checkInInfo)
+    return
+  }
+
+  // Comandos del cliente
+  if (lowerMessage === 'puntos' || lowerMessage === 'points') {
+    await handlePointsQuery(context)
+    return
+  }
+
+  if (lowerMessage === 'ayuda' || lowerMessage === 'help') {
+    await handleHelpCommand(context)
+    return
+  }
+
+  if (lowerMessage === 'stop' || lowerMessage === 'baja') {
+    await handleOptOut(context)
+    return
+  }
+
+  // Si es nuevo cliente, enviar bienvenida primero
+  if (context.isNew) {
+    await sendWelcomeMessage(context.phone, context.customerName)
+    return
+  }
+
+  // Parsear información de negocio y sucursal (solo si tiene formato específico)
+  const businessInfo = parseBusinessMessage(context.message)
+  if (businessInfo.branchName) {
+    // Solo si tiene separador " - " considerarlo como info de negocio
+    await handleBusinessInfo(context, businessInfo)
+    return
+  }
+
+  // Mensaje desconocido - enviar ayuda
+  await handleHelpCommand(context)
+}
+
+/**
+ * Handler para consulta de puntos
+ */
+async function handlePointsQuery(context: MessageContext): Promise<void> {
+  try {
+    // Usar server client para bypasear RLS
+    const supabase = createServerClient()
+
+    // Obtener todos los negocios donde está registrado el cliente
+    const businessRelationships = await getBusinessesByCustomer(context.customer.id, supabase)
+
+    if (!businessRelationships || businessRelationships.length === 0) {
+      const message = `⭐ *Balance de Puntos*
+
+Hola ${context.customerName},
+
+Aún no tienes puntos registrados en ningún negocio.
+
+Comienza a acumular puntos visitando nuestras sucursales y escaneando el código QR. 🎁`
+
+      const client = getEvolutionClient()
+      await client.sendTextMessage({
+        phone: context.phone,
+        message,
+      })
+      return
+    }
+
+    // Calcular totales generales
+    const totalPointsAllBusinesses = businessRelationships.reduce(
+      (sum, rel) => sum + (rel.total_points || 0),
+      0
+    )
+    const totalVisitsAllBusinesses = businessRelationships.reduce(
+      (sum, rel) => sum + (rel.visits_count || 0),
+      0
+    )
+
+    // Construir mensaje con desglose por negocio
+    let message = `⭐ *Balance de Puntos*
+
+Hola ${context.customerName}, aquí está tu resumen:
+
+📊 *Total general:* ${totalPointsAllBusinesses} puntos
+🏪 *Visitas totales:* ${totalVisitsAllBusinesses} visitas
+🏢 *Negocios registrados:* ${businessRelationships.length}
+
+━━━━━━━━━━━━━━━━
+*Desglose por negocio:*
+`
+
+    businessRelationships.forEach((rel, index) => {
+      message += `\n${index + 1}. *${rel.business_name || 'Negocio'}*`
+      message += `\n   📍 ${rel.business_address || 'N/A'}`
+      message += `\n   ⭐ ${rel.total_points || 0} puntos`
+      message += `\n   🏪 ${rel.visits_count || 0} visitas`
+      if (index < businessRelationships.length - 1) {
+        message += '\n'
+      }
+    })
+
+    message += `\n━━━━━━━━━━━━━━━━
+
+¡Sigue acumulando puntos para canjear por gift cards! 🎁`
+
+    const client = getEvolutionClient()
+    await client.sendTextMessage({
+      phone: context.phone,
+      message,
+    })
+
+    console.log(`✅ Points query responded for ${context.phone}`)
+  } catch (error) {
+    console.error('Error handling points query:', error)
+  }
+}
+
+/**
+ * Handler para comando de ayuda
+ */
+async function handleHelpCommand(context: MessageContext): Promise<void> {
+  try {
+    await sendHelpMessage(context.phone)
+    console.log(`✅ Help message sent to ${context.phone}`)
+  } catch (error) {
+    console.error('Error handling help command:', error)
+  }
+}
+
+/**
+ * Handler para opt-out (darse de baja)
+ */
+async function handleOptOut(context: MessageContext): Promise<void> {
+  try {
+    // Desactivar cliente y marcar opt-out de marketing
+    await updateCustomer(context.phone, {
+      is_active: false,
+      opt_in_marketing: false,
+      blocked_reason: `Opted out on ${new Date().toISOString()}`,
+    })
+
+    const message = `✅ Has sido dado de baja del programa.
+
+Ya no recibirás mensajes automáticos de nuestra parte.
+
+Si cambias de opinión, simplemente envíanos un mensaje y te reactivaremos. ¡Gracias por participar!`
+
+    const client = getEvolutionClient()
+    await client.sendTextMessage({
+      phone: context.phone,
+      message,
+    })
+
+    console.log(`✅ Customer ${context.phone} opted out`)
+  } catch (error) {
+    console.error('Error handling opt-out:', error)
+  }
+}
+
+/**
+ * Handler para check-in en sucursal
+ */
+async function handleCheckIn(
+  context: MessageContext,
+  checkInInfo: {
+    businessName: string
+    branchName: string
+    businessId?: string
+    branchId?: string
+  }
+): Promise<void> {
+  try {
+    const { businessName, branchName } = checkInInfo
+
+    console.log(`🏪 Check-in detected for ${context.phone}:`, {
+      businessName,
+      branchName,
+    })
+
+    // Usar server client para bypasear RLS
+    const supabase = createServerClient()
+
+    // 1. Buscar el negocio PADRE en business_settings por nombre
+    console.log(`🔍 Buscando negocio con nombre: "${businessName}"`)
+
+    const { data: businessSettings, error: businessSettingsError } = await supabase
+      .from('business_settings')
+      .select('id, name')
+      .ilike('name', businessName)
+      .single()
+
+    if (businessSettingsError || !businessSettings) {
+      console.error('❌ Business settings not found:', businessSettingsError)
+      console.error('❌ Nombre buscado:', businessName)
+      console.error('❌ Error details:', businessSettingsError?.message, businessSettingsError?.code)
+
+      // Intentar listar todos los business_settings para debug
+      const { data: allBusinessSettings } = await supabase
+        .from('business_settings')
+        .select('id, name')
+      console.log('📋 Todos los negocios en la DB:', allBusinessSettings)
+
+      // Enviar mensaje de error al cliente
+      const client = getEvolutionClient()
+      await client.sendTextMessage({
+        phone: context.phone,
+        message: `❌ *Negocio no encontrado*
+
+Lo sentimos, no pudimos encontrar el negocio "${businessName}" en nuestro sistema.
+
+Por favor verifica el nombre del negocio y vuelve a intentar, o contacta con el personal.`,
+      })
+      return
+    }
+
+    console.log('✅ Business settings found:', businessSettings)
+
+    // 2. Buscar la SUCURSAL específica que pertenece a este negocio
+    const { data: branch, error: branchError } = await supabase
+      .from('businesses')
+      .select('id, name, address')
+      .eq('business_settings_id', businessSettings.id)
+      .ilike('name', branchName)
+      .single()
+
+    if (branchError || !branch) {
+      console.warn('⚠️ Branch not found, using business_settings_id only:', branchError)
+      // Continuar sin sucursal específica, pero advertir
+    } else {
+      console.log('✅ Branch found:', branch)
+    }
+
+    // 3. Crear o actualizar la relación customer-business con 10 puntos
+    const POINTS_PER_CHECKIN = 10
+    const { relationship, isNew: isNewRelationship } = await getOrCreateCustomerBusiness(
+      context.customer.id,
+      businessSettings.id,
+      POINTS_PER_CHECKIN,
+      branch?.id,
+      supabase  // Pasar el server client para bypasear RLS
+    )
+
+    console.log(`✅ Customer-Business relationship ${isNewRelationship ? 'created' : 'updated'}:`, {
+      customer_id: context.customer.id,
+      business_settings_id: businessSettings.id,
+      branch_id: branch?.id,
+      total_points: relationship.total_points,
+      visits_count: relationship.visits_count,
+    })
+
+    // 4. Enviar mensaje de confirmación con puntos del negocio específico
+    const message = `✅ *Check-in exitoso*
+
+¡Bienvenido a *${businessName}*!
+📍 Sucursal: ${branchName}
+
+${isNewRelationship ? `🎉 ¡Es tu primera visita a este negocio! Has sido registrado.\n\n` : ''}🎁 *Puntos ganados:* ${POINTS_PER_CHECKIN} puntos
+⭐ *Total de puntos en ${businessName}:* ${relationship.total_points || 0} puntos
+🏪 *Visitas a ${businessName}:* ${relationship.visits_count || 0} visitas
+
+¡Gracias por visitarnos! Sigue acumulando puntos para obtener recompensas.
+
+Envía *PUNTOS* para ver tu balance completo.`
+
+    const client = getEvolutionClient()
+    await client.sendTextMessage({
+      phone: context.phone,
+      message,
+    })
+
+    console.log(`✅ Check-in processed for ${context.phone} at ${businessName} - ${branchName}`)
+  } catch (error) {
+    console.error('Error handling check-in:', error)
+
+    // Enviar mensaje de error al cliente
+    try {
+      const client = getEvolutionClient()
+      await client.sendTextMessage({
+        phone: context.phone,
+        message: '❌ Hubo un error al procesar tu check-in. Por favor intenta nuevamente o contacta con el personal.',
+      })
+    } catch (msgError) {
+      console.error('Error sending error message:', msgError)
+    }
+  }
+}
+
+/**
+ * Handler para información de negocio y sucursal
+ */
+async function handleBusinessInfo(
+  context: MessageContext,
+  businessInfo: { businessName: string | null; branchName: string | null }
+): Promise<void> {
+  try {
+    // Simplemente enviar confirmación
+    // La información se puede guardar en otra tabla si es necesario
+    if (businessInfo.businessName) {
+      await sendBusinessConfirmation(
+        context.phone,
+        businessInfo.businessName,
+        businessInfo.branchName || undefined
+      )
+    }
+
+    console.log(`✅ Business info processed for ${context.phone}`)
+  } catch (error) {
+    console.error('Error handling business info:', error)
+  }
+}
+
+/**
+ * Parsea el mensaje para extraer información del negocio y sucursal
+ * Solo considera válido si tiene el formato "Negocio - Sucursal"
+ */
+function parseBusinessMessage(message: string): {
+  businessName: string | null
+  branchName: string | null
+} {
+  if (!message || !message.trim()) {
+    return { businessName: null, branchName: null }
+  }
+
+  // Buscar patrón: "Negocio - Sucursal" (debe tener el separador " - ")
+  const separatorMatch = message.match(/^(.+?)\s*-\s*(.+)$/)
+
+  if (separatorMatch) {
+    return {
+      businessName: separatorMatch[1].trim(),
+      branchName: separatorMatch[2].trim(),
+    }
+  }
+
+  // Si no tiene separador, no es información de negocio
+  return {
+    businessName: null,
+    branchName: null,
+  }
+}
+
+/**
+ * GET endpoint para verificar que la API está funcionando
+ */
+export async function GET() {
+  return NextResponse.json({
+    status: 'ok',
+    message: 'WhatsApp webhook endpoint is running',
+    timestamp: new Date().toISOString(),
+  })
+}

@@ -21,11 +21,13 @@ import {
   BreadcrumbSeparator,
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb"
-import { Search, Filter, Download, Phone, Award, Calendar, Home, Users } from "lucide-react"
-import { useState, useMemo } from "react"
+import { Search, Filter, Download, Phone, Award, Calendar, Home, Users, Building2 } from "lucide-react"
+import { useState, useMemo, useEffect } from "react"
 import { exportToCSV } from "@/lib/export-csv"
-import { clientesData } from "@/lib/clientes-data"
 import { useNavigation } from "@/contexts/navigation-context"
+import { getBusinessSettings, type BusinessSettings } from "@/lib/supabase/business-settings"
+import { getCustomersByBusiness, type CustomerBusinessWithDetails } from "@/lib/supabase/customer-businesses"
+import { toast } from "sonner"
 
 export function ClientesView() {
   const { setView } = useNavigation()
@@ -33,22 +35,67 @@ export function ClientesView() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
 
+  // Estados para negocio y clientes
+  const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null)
+  const [customers, setCustomers] = useState<CustomerBusinessWithDetails[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Cargar configuración del negocio y clientes al montar el componente
+  useEffect(() => {
+    loadBusinessAndCustomers()
+  }, [])
+
+  const loadBusinessAndCustomers = async () => {
+    try {
+      setIsLoading(true)
+
+      // Cargar la configuración del negocio
+      const settings = await getBusinessSettings()
+
+      if (!settings) {
+        toast.error('No se encontró configuración del negocio')
+        setIsLoading(false)
+        return
+      }
+
+      setBusinessSettings(settings)
+
+      // Cargar los clientes del negocio
+      const customersList = await getCustomersByBusiness(settings.id!)
+      setCustomers(customersList)
+    } catch (error) {
+      console.error('Error loading business and customers:', error)
+      toast.error('Error al cargar los datos')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   // Filtrar clientes basado en el término de búsqueda
   const filteredClientes = useMemo(() => {
-    if (!searchTerm) return clientesData
+    if (!searchTerm) return customers
 
-    return clientesData.filter((cliente) =>
-      cliente.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cliente.telefono.includes(searchTerm)
+    return customers.filter((customer) =>
+      customer.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.phone?.includes(searchTerm)
     )
-  }, [searchTerm])
+  }, [searchTerm, customers])
 
   const handleExportCSV = () => {
+    const exportData = filteredClientes.map((customer) => ({
+      nombre: customer.customer_name || 'N/A',
+      telefono: customer.phone || 'N/A',
+      puntos: customer.total_points || 0,
+      visitas: customer.visits_count || 0,
+      ultimaVisita: customer.last_visit_at
+        ? new Date(customer.last_visit_at).toLocaleDateString('es-ES')
+        : 'N/A',
+    }))
+
     exportToCSV(
-      filteredClientes,
-      `clientes-${new Date().toISOString().split('T')[0]}`,
+      exportData,
+      `clientes-${businessSettings?.name || 'negocio'}-${new Date().toISOString().split('T')[0]}`,
       {
-        id: "ID",
         nombre: "Nombre",
         telefono: "Teléfono",
         puntos: "Puntos",
@@ -110,12 +157,16 @@ export function ClientesView() {
 
       {/* Header Section */}
       <div className="px-4 lg:px-6">
-        <h1 className="text-3xl font-bold text-foreground mb-2">
-          Clientes
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          Gestiona y visualiza información de tus clientes
-        </p>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground mb-2">
+              Clientes
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              Gestiona y visualiza información de tus clientes{businessSettings ? ` de ${businessSettings.name}` : ''}
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Search and Actions Bar */}
@@ -152,19 +203,24 @@ export function ClientesView() {
 
       {/* Cards Grid */}
       <div className="px-4 lg:px-6">
-        {currentClientes.length > 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+            <p className="text-sm text-muted-foreground">Cargando clientes...</p>
+          </div>
+        ) : currentClientes.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {currentClientes.map((cliente) => (
-              <Card key={cliente.id} className="p-4 shadow-none" style={{ borderRadius: '30px', border: '1px solid #eeeeee' }}>
+            {currentClientes.map((customer) => (
+              <Card key={customer.id} className="p-4 shadow-none" style={{ borderRadius: '30px', border: '1px solid #eeeeee' }}>
                 {/* Header con nombre y puntos */}
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <h3 className="font-semibold text-base text-foreground">
-                      {cliente.nombre}
+                      {customer.customer_name || 'Cliente'}
                     </h3>
                   </div>
-                  <Badge variant={getPuntosBadgeVariant(cliente.puntos)}>
-                    {cliente.puntos.toLocaleString('es-ES')} pts
+                  <Badge variant={getPuntosBadgeVariant(customer.total_points || 0)}>
+                    {(customer.total_points || 0).toLocaleString('es-ES')} pts
                   </Badge>
                 </div>
 
@@ -172,18 +228,20 @@ export function ClientesView() {
                 <div className="flex flex-col gap-2 text-sm">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Phone className="w-4 h-4 flex-shrink-0" />
-                    <span>{cliente.telefono}</span>
+                    <span>{customer.phone || 'N/A'}</span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <Award className="w-4 h-4 text-primary flex-shrink-0" />
-                    <span className="font-medium">{cliente.visitas} visitas</span>
+                    <span className="font-medium">{customer.visits_count || 0} visitas</span>
                   </div>
 
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Calendar className="w-4 h-4 flex-shrink-0" />
-                    <span>Última visita: {formatDate(cliente.ultimaVisita)}</span>
-                  </div>
+                  {customer.last_visit_at && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Calendar className="w-4 h-4 flex-shrink-0" />
+                      <span>Última visita: {formatDate(customer.last_visit_at)}</span>
+                    </div>
+                  )}
                 </div>
               </Card>
             ))}
@@ -194,14 +252,19 @@ export function ClientesView() {
               <Users className="w-10 h-10 text-primary/40" />
             </div>
             <h3 className="text-xl font-semibold text-foreground mb-2">
-              {searchTerm ? "No se encontraron clientes" : "Aún no tienes clientes"}
+              {searchTerm ? "No se encontraron clientes" : "Aún no tienes clientes en este negocio"}
             </h3>
             <p className="text-sm text-muted-foreground mb-6 max-w-md text-center">
               {searchTerm
                 ? "Intenta ajustar tus criterios de búsqueda"
-                : "Los clientes aparecerán aquí cuando realicen su primera transacción"
+                : "Los clientes aparecerán aquí cuando escaneen el código QR y hagan check-in"
               }
             </p>
+            {businessSettings && (
+              <p className="text-xs text-muted-foreground">
+                Negocio: <span className="font-medium">{businessSettings.name}</span>
+              </p>
+            )}
           </div>
         )}
       </div>

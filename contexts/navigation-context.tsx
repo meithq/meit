@@ -13,14 +13,18 @@ interface NavigationContextType {
 const NavigationContext = createContext<NavigationContextType | undefined>(undefined)
 
 export function NavigationProvider({ children }: { children: React.ReactNode }) {
-  const [currentView, setCurrentView] = useState<View>("dashboard")
   const router = useRouter()
   const pathname = usePathname()
 
-  // Sincronizar vista con URL al cargar
+  // Inicializar con la vista correcta desde la URL
+  const [currentView, setCurrentView] = useState<View>(() => {
+    return getViewFromPath(pathname) || "dashboard"
+  })
+
+  // Sincronizar vista con URL al cambiar
   useEffect(() => {
     const viewFromPath = getViewFromPath(pathname)
-    if (viewFromPath) {
+    if (viewFromPath && viewFromPath !== currentView) {
       setCurrentView(viewFromPath)
     }
   }, [pathname])

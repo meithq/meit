@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import * as React from "react"
+import { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -20,24 +21,196 @@ import { FormSelect } from "@/components/ui/form-select"
 import { Label } from "@/components/ui/label"
 import { PrimaryButton } from "@/components/ui/primary-button"
 import { SecondaryButton } from "@/components/ui/secondary-button"
+import { getBusinessSettings, upsertBusinessSettings } from "@/lib/supabase/business-settings"
+import { getBusinessTypes, type BusinessType } from "@/lib/supabase/business-types"
+import { getGiftCardSettings, upsertGiftCardSettings } from "@/lib/supabase/gift-card-settings"
+import { toast } from "sonner"
 
 interface SettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  initialTab?: SettingsSection
 }
 
 type SettingsSection = "negocio" | "puntos" | "whatsapp" | "equipo"
 
-export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
-  const [activeSection, setActiveSection] = useState<SettingsSection>("negocio")
-  const [codigoArea, setCodigoArea] = useState("414")
+export function SettingsModal({ open, onOpenChange, initialTab = "negocio" }: SettingsModalProps) {
+  const [activeSection, setActiveSection] = useState<SettingsSection>(initialTab)
+
+  // Business settings states
+  const [businessName, setBusinessName] = useState("")
+  const [businessType, setBusinessType] = useState<string>("")
+  const [phoneCode, setPhoneCode] = useState("414")
+  const [phoneNumber, setPhoneNumber] = useState("")
+  const [address, setAddress] = useState("")
+  const [isLoadingBusiness, setIsLoadingBusiness] = useState(false)
+  const [isSavingBusiness, setIsSavingBusiness] = useState(false)
+
+  // Business types from database
+  const [businessTypes, setBusinessTypes] = useState<BusinessType[]>([])
+  const [isLoadingTypes, setIsLoadingTypes] = useState(false)
+
+  // Points settings states
+  const [puntosRequeridos, setPuntosRequeridos] = useState(100)
+  const [valorGiftCard, setValorGiftCard] = useState(5)
+  const [diasVencimiento, setDiasVencimiento] = useState(30)
+  const [maxGiftCards, setMaxGiftCards] = useState(5)
+  const [isLoadingGiftCards, setIsLoadingGiftCards] = useState(false)
+  const [isSavingGiftCards, setIsSavingGiftCards] = useState(false)
 
   const menuItems = [
     { id: "negocio" as SettingsSection, label: "Negocio", icon: Building2 },
-    { id: "puntos" as SettingsSection, label: "Puntos", icon: Gift },
+    { id: "puntos" as SettingsSection, label: "Gift Cards", icon: Gift },
     { id: "whatsapp" as SettingsSection, label: "WhatsApp", icon: MessageSquare },
     { id: "equipo" as SettingsSection, label: "Equipo", icon: Users },
   ]
+
+  // Actualizar la pestaña activa cuando cambie initialTab
+  useEffect(() => {
+    if (initialTab) {
+      setActiveSection(initialTab)
+    }
+  }, [initialTab])
+
+  // Load business types when component mounts
+  useEffect(() => {
+    loadBusinessTypes()
+  }, [])
+
+  // Load business settings when modal opens
+  useEffect(() => {
+    if (open) {
+      loadBusinessSettings()
+      loadGiftCardSettings()
+    }
+  }, [open])
+
+  const loadBusinessTypes = async () => {
+    setIsLoadingTypes(true)
+    try {
+      const types = await getBusinessTypes()
+      console.log("🔍 Business types loaded:", types)
+      setBusinessTypes(types)
+    } catch (error) {
+      console.error("❌ Error loading business types:", error)
+      toast.error("Error al cargar los tipos de negocio")
+    } finally {
+      setIsLoadingTypes(false)
+    }
+  }
+
+  const loadBusinessSettings = async () => {
+    setIsLoadingBusiness(true)
+    try {
+      const settings = await getBusinessSettings()
+      if (settings) {
+        setBusinessName(settings.name || "")
+        setBusinessType(settings.type?.toString() || "")
+        setPhoneCode(settings.phone_code || "414")
+        setPhoneNumber(settings.phone_number || "")
+        setAddress(settings.address || "")
+      }
+    } catch (error) {
+      console.error("Error loading business settings:", error)
+      toast.error("Error al cargar la configuración del negocio")
+    } finally {
+      setIsLoadingBusiness(false)
+    }
+  }
+
+  const loadGiftCardSettings = async () => {
+    setIsLoadingGiftCards(true)
+    try {
+      const settings = await getGiftCardSettings()
+      if (settings) {
+        setPuntosRequeridos(settings.points_required || 100)
+        setValorGiftCard(settings.card_value || 5)
+        setDiasVencimiento(settings.expiration_days || 30)
+        setMaxGiftCards(settings.max_active_cards || 5)
+      }
+    } catch (error) {
+      console.error("Error loading gift card settings:", error)
+      toast.error("Error al cargar la configuración de gift cards")
+    } finally {
+      setIsLoadingGiftCards(false)
+    }
+  }
+
+  const handleSaveBusinessSettings = async () => {
+    setIsSavingBusiness(true)
+    try {
+      await upsertBusinessSettings({
+        name: businessName,
+        type: businessType ? parseInt(businessType) : undefined,
+        phone_code: phoneCode,
+        phone_number: phoneNumber,
+        address: address,
+      })
+      toast.success("Configuración guardada exitosamente")
+      onOpenChange(false)
+    } catch (error) {
+      console.error("Error saving business settings:", error)
+      toast.error("Error al guardar la configuración")
+    } finally {
+      setIsSavingBusiness(false)
+    }
+  }
+
+  const handleCancelBusinessSettings = () => {
+    onOpenChange(false)
+    // Reset form when cancelled
+    loadBusinessSettings()
+  }
+
+  const handleRestaurarPredeterminados = () => {
+    setPuntosRequeridos(100)
+    setValorGiftCard(5)
+    setDiasVencimiento(30)
+    setMaxGiftCards(5)
+    toast.success("Valores predeterminados restaurados")
+  }
+
+  const handleGuardarCambiosGiftCards = async () => {
+    setIsSavingGiftCards(true)
+    try {
+      console.log("Saving gift card settings:", {
+        points_required: puntosRequeridos,
+        card_value: valorGiftCard,
+        expiration_days: diasVencimiento,
+        max_active_cards: maxGiftCards,
+      })
+      const result = await upsertGiftCardSettings({
+        points_required: puntosRequeridos,
+        card_value: valorGiftCard,
+        expiration_days: diasVencimiento,
+        max_active_cards: maxGiftCards,
+      })
+      console.log("Gift card settings saved successfully:", result)
+      toast.success("Configuración guardada exitosamente")
+      onOpenChange(false)
+    } catch (error) {
+      console.error("Error saving gift card settings:", error)
+      console.error("Error type:", typeof error)
+      console.error("Error keys:", error ? Object.keys(error) : "null")
+      if (error instanceof Error) {
+        console.error("Error message:", error.message)
+        console.error("Error stack:", error.stack)
+      }
+      toast.error("Error al guardar la configuración")
+    } finally {
+      setIsSavingGiftCards(false)
+    }
+  }
+
+  // Memoize business type options
+  const businessTypeOptions = React.useMemo(() => {
+    const options = businessTypes.map(type => ({
+      value: type.id.toString(),
+      label: type.name
+    }))
+    console.log("📋 Business type options:", options)
+    return options
+  }, [businessTypes])
 
   const renderContent = () => {
     switch (activeSection) {
@@ -57,6 +230,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 <FormInput
                   id="nombre"
                   placeholder="Ej: Mi Restaurante"
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  disabled={isLoadingBusiness}
                 />
               </div>
 
@@ -64,16 +240,10 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 <Label htmlFor="tipo">Tipo de negocio</Label>
                 <FormSelect
                   placeholder="Selecciona el tipo de negocio"
-                  options={[
-                    { value: "panaderia", label: "Panadería" },
-                    { value: "restaurante", label: "Restaurante" },
-                    { value: "cafeteria", label: "Cafetería" },
-                    { value: "bar", label: "Bar" },
-                    { value: "heladeria", label: "Heladería" },
-                    { value: "tienda", label: "Tienda" },
-                    { value: "supermercado", label: "Supermercado" },
-                    { value: "otro", label: "Otro" },
-                  ]}
+                  value={businessType}
+                  onValueChange={setBusinessType}
+                  options={businessTypeOptions}
+                  disabled={isLoadingBusiness || isLoadingTypes}
                 />
               </div>
 
@@ -82,8 +252,8 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 <div className="flex gap-2">
                   <div className="w-32">
                     <FormSelect
-                      value={codigoArea}
-                      onValueChange={setCodigoArea}
+                      value={phoneCode}
+                      onValueChange={setPhoneCode}
                       placeholder="Código"
                       options={[
                         { value: "414", label: "0414" },
@@ -93,12 +263,16 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                         { value: "412", label: "0412" },
                         { value: "422", label: "0422" },
                       ]}
+                      disabled={isLoadingBusiness}
                     />
                   </div>
                   <FormInput
                     id="telefono"
                     placeholder="Ej: 1234567"
                     className="flex-1"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    disabled={isLoadingBusiness}
                   />
                 </div>
               </div>
@@ -108,16 +282,27 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 <FormInput
                   id="direccion"
                   placeholder="Ej: Av. Principal #123"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  disabled={isLoadingBusiness}
                 />
               </div>
             </div>
 
             <div className="flex gap-3 pt-4">
-              <SecondaryButton className="flex-1">
+              <SecondaryButton
+                className="flex-1"
+                onClick={handleCancelBusinessSettings}
+                disabled={isSavingBusiness}
+              >
                 Cancelar
               </SecondaryButton>
-              <PrimaryButton className="flex-1">
-                Guardar cambios
+              <PrimaryButton
+                className="flex-1"
+                onClick={handleSaveBusinessSettings}
+                disabled={isSavingBusiness || isLoadingBusiness}
+              >
+                {isSavingBusiness ? "Guardando..." : "Guardar cambios"}
               </PrimaryButton>
             </div>
           </div>
@@ -125,95 +310,116 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
       case "puntos":
         return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold mb-2">Configuración de sistema de puntos</h2>
-              <p className="text-sm text-muted-foreground">
-                Define cómo tus clientes acumulan puntos y obtienen gift cards. Los cambios afectan solo a las transacciones futuras.
-              </p>
-            </div>
-
-            <Card className="p-4 bg-blue-50 border-blue-200" style={{ borderRadius: '20px' }}>
-              <div className="flex gap-3">
-                <div className="flex-shrink-0">
-                  <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
-                    <span className="text-white text-sm font-bold">i</span>
-                  </div>
-                </div>
+          <div className="flex flex-col h-full">
+            {/* Contenido scrollable */}
+            <div className="flex-1 overflow-y-auto pr-2">
+              <div className="space-y-6">
                 <div>
-                  <h3 className="font-semibold text-sm text-blue-900 mb-1">Configuración de sistema de puntos</h3>
-                  <p className="text-sm text-blue-700">
-                    Define cómo tus clientes acumulan puntos y obtienen gift cards. Los cambios afectan solo a las transacciones futuras.
+                  <h2 className="text-2xl font-bold mb-2">Configuración de Gift Cards</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Personaliza los parámetros de generación y vencimiento de gift cards
+                  </p>
+                </div>
+
+                {/* Puntos requeridos */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Puntos requeridos para generar gift card</Label>
+                    <span className="text-lg font-bold text-primary">{puntosRequeridos}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="50"
+                    max="500"
+                    step="10"
+                    value={puntosRequeridos}
+                    onChange={(e) => setPuntosRequeridos(Number(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary"
+                  />
+                  <p className="text-xs text-muted-foreground">Rango: 50 - 500 puntos</p>
+                </div>
+
+                {/* Valor de gift card */}
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="valor">Valor de gift card (USD)</Label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                    <FormInput
+                      id="valor"
+                      type="number"
+                      min="2"
+                      max="25"
+                      value={valorGiftCard}
+                      onChange={(e) => setValorGiftCard(Number(e.target.value))}
+                      className="pl-8"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Rango: $2 - $25 USD</p>
+                </div>
+
+                {/* Días de vencimiento */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Días de vencimiento</Label>
+                    <span className="text-lg font-bold text-primary">{diasVencimiento}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="7"
+                    max="90"
+                    step="1"
+                    value={diasVencimiento}
+                    onChange={(e) => setDiasVencimiento(Number(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary"
+                  />
+                  <p className="text-xs text-muted-foreground">Rango: 7 - 90 días</p>
+                </div>
+
+                {/* Máximo de gift cards */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Máximo de gift cards activas por cliente</Label>
+                    <span className="text-lg font-bold text-primary">{maxGiftCards}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    step="1"
+                    value={maxGiftCards}
+                    onChange={(e) => setMaxGiftCards(Number(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary"
+                  />
+                  <p className="text-xs text-muted-foreground">Rango: 1 - 10 gift cards</p>
+                </div>
+
+                {/* Nota informativa */}
+                <div className="p-4 rounded-[20px] bg-blue-50 border border-blue-200">
+                  <p className="text-sm text-blue-800">
+                    <span className="font-semibold">Nota:</span> Los cambios se aplicarán a las nuevas gift cards generadas. Las gift cards existentes mantendrán su configuración original.
                   </p>
                 </div>
               </div>
-            </Card>
-
-            <div className="space-y-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="puntos-por-dolar">
-                  Puntos por dólar <span className="text-red-500">*</span>
-                </Label>
-                <FormInput
-                  id="puntos-por-dolar"
-                  type="number"
-                  defaultValue="1"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Cuántos puntos se otorgan por cada $1 USD de compra
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="puntos-giftcard">
-                  Puntos necesarios para gift card <span className="text-red-500">*</span>
-                </Label>
-                <FormInput
-                  id="puntos-giftcard"
-                  type="number"
-                  defaultValue="100"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Cantidad de puntos que el cliente debe acumular para recibir una gift card
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="valor-giftcard">
-                  Valor de la gift card (USD) <span className="text-red-500">*</span>
-                </Label>
-                <FormInput
-                  id="valor-giftcard"
-                  type="number"
-                  defaultValue="5"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Valor en dólares de cada gift card generada
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="limite-diario">
-                  Límite diario de puntos por cliente <span className="text-red-500">*</span>
-                </Label>
-                <FormInput
-                  id="limite-diario"
-                  type="number"
-                  defaultValue="1000"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Máximo de puntos que un cliente puede acumular en un día
-                </p>
-              </div>
             </div>
 
-            <div className="flex gap-3 pt-4">
-              <SecondaryButton className="flex-1">
-                Cancelar
-              </SecondaryButton>
-              <PrimaryButton className="flex-1">
-                Guardar cambios
-              </PrimaryButton>
+            {/* Botones fijos */}
+            <div className="pt-4 border-t mt-4" style={{ borderColor: '#eeeeee' }}>
+              <div className="flex gap-3">
+                <SecondaryButton
+                  className="flex-1"
+                  onClick={handleRestaurarPredeterminados}
+                  disabled={isSavingGiftCards}
+                >
+                  Restaurar predeterminados
+                </SecondaryButton>
+                <PrimaryButton
+                  className="flex-1"
+                  onClick={handleGuardarCambiosGiftCards}
+                  disabled={isSavingGiftCards || isLoadingGiftCards}
+                >
+                  {isSavingGiftCards ? "Guardando..." : "Guardar cambios"}
+                </PrimaryButton>
+              </div>
             </div>
           </div>
         )

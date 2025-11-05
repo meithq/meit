@@ -42,14 +42,15 @@ export function CheckinsCard() {
   }
 
   const data = getData()
-  
+
   const calculateAverage = () => {
+    if (data.length === 0) return 0
     const total = data.reduce((sum, item) => sum + item.checkins, 0)
     return Math.round(total / data.length)
   }
 
   const average = calculateAverage()
-  
+
   const getTotal = () => {
     return data.reduce((sum, item) => sum + item.checkins, 0)
   }

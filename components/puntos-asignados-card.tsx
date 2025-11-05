@@ -38,12 +38,13 @@ export function PuntosAsignadosCard() {
   }
   
   const data = getData()
-  
+
   const getTotal = () => {
     return data.reduce((sum, item) => sum + item.puntos, 0)
   }
-  
+
   const calculateAverage = () => {
+    if (data.length === 0) return 0
     const total = data.reduce((sum, item) => sum + item.puntos, 0)
     return Math.round(total / data.length)
   }

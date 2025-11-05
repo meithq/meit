@@ -4,12 +4,17 @@ import { SectionCards } from "@/components/section-cards"
 import { CheckinsCard } from "@/components/checkins-card"
 import { PuntosAsignadosCard } from "@/components/puntos-asignados-card"
 import { WelcomeModal } from "@/components/welcome-modal"
+import { SettingsModal } from "@/components/settings-modal"
 import { OnboardingBanner } from "@/components/onboarding-banner"
 import { getCurrentUser, getUserProfile, updateFirstTimeStatus } from "@/lib/supabase/auth"
+import { useNavigation } from "@/contexts/navigation-context"
 import { useState, useEffect } from "react"
 
 export function DashboardView() {
+  const { setView } = useNavigation()
   const [showWelcomeModal, setShowWelcomeModal] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<string>("negocio")
   const [showConfetti, setShowConfetti] = useState(false)
   const [userProfile, setUserProfile] = useState<any>(null)
   const [userName, setUserName] = useState("Usuario")
@@ -70,6 +75,15 @@ export function DashboardView() {
     }
   }
 
+  const handleNavigateToConfig = (tab: string) => {
+    setSettingsTab(tab)
+    setShowSettingsModal(true)
+  }
+
+  const handleNavigateToRetos = () => {
+    setView("retos")
+  }
+
   return (
     <div className="flex flex-col gap-4 pt-4 md:pt-6 md:gap-6 max-w-[1200px] mx-auto w-full pb-[100px]">
       <div className="px-4 lg:px-6">
@@ -107,6 +121,14 @@ export function DashboardView() {
         open={showWelcomeModal}
         onOpenChange={handleCloseModal}
         showConfetti={showConfetti}
+        onNavigateToConfig={handleNavigateToConfig}
+        onNavigateToRetos={handleNavigateToRetos}
+      />
+
+      <SettingsModal
+        open={showSettingsModal}
+        onOpenChange={setShowSettingsModal}
+        initialTab={settingsTab as any}
       />
     </div>
   )

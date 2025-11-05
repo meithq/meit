@@ -33,24 +33,27 @@ function AdminContent() {
   }
 
   const renderView = () => {
-    switch (currentView) {
-      case "dashboard":
-        return <DashboardView />
-      case "clientes":
-        return <ClientesView />
-      case "sucursales":
-        return <SucursalesView />
-      case "pos":
-        return <POSView />
-      case "retos":
-        return <RetosView />
-      case "giftcards":
-        return <GiftCardsView />
-      case "analytics":
-        return <PlaceholderView title="Analytics" description="Análisis y estadísticas de tu negocio" icon={BarChart3} />
-      default:
-        return <DashboardView />
+    const views = {
+      dashboard: <DashboardView />,
+      clientes: <ClientesView />,
+      sucursales: <SucursalesView />,
+      pos: <POSView />,
+      retos: <RetosView />,
+      giftcards: <GiftCardsView />,
+      analytics: <PlaceholderView title="Analytics" description="Análisis y estadísticas de tu negocio" icon={BarChart3} />
     }
+
+    const ViewComponent = views[currentView as keyof typeof views] || views.dashboard
+
+    return (
+      <div
+        key={currentView}
+        className="animate-slide-up w-full"
+        style={{ willChange: 'transform, opacity' }}
+      >
+        {ViewComponent}
+      </div>
+    )
   }
 
   return (
@@ -258,7 +261,7 @@ function AdminContent() {
         </header>
 
         {/* Contenido principal con scroll */}
-        <div className="flex-1 overflow-y-auto px-6">
+        <div className="flex-1 overflow-y-auto px-6 relative">
           {renderView()}
         </div>
       </main>

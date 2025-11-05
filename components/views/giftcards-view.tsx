@@ -30,6 +30,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Home, Settings, Gift, TrendingUp, DollarSign, Percent, CheckCircle, Calendar, User, CreditCard, X } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
 import { useNavigation } from "@/contexts/navigation-context"
+import { getGiftCardSettings, upsertGiftCardSettings } from "@/lib/supabase/gift-card-settings"
+import { toast } from "sonner"
 
 interface GiftCard {
   id: string
@@ -56,6 +58,7 @@ export function GiftCardsView() {
   const [showConfigSheet, setShowConfigSheet] = useState(false)
   const [showPinModal, setShowPinModal] = useState(false)
   const [activeTab, setActiveTab] = useState("activas")
+  const [activeMode, setActiveMode] = useState<"redimir" | "gestion">("redimir")
   const [pin, setPin] = useState(["", "", "", ""])
   const pinInputsRef = useRef<(HTMLInputElement | null)[]>([])
 
@@ -115,6 +118,33 @@ export function GiftCardsView() {
   const [valorGiftCard, setValorGiftCard] = useState(5)
   const [diasVencimiento, setDiasVencimiento] = useState(30)
   const [maxGiftCards, setMaxGiftCards] = useState(5)
+  const [isLoadingSettings, setIsLoadingSettings] = useState(false)
+  const [isSavingSettings, setIsSavingSettings] = useState(false)
+
+  // Load gift card settings when config sheet opens
+  useEffect(() => {
+    if (showConfigSheet) {
+      loadGiftCardSettings()
+    }
+  }, [showConfigSheet])
+
+  const loadGiftCardSettings = async () => {
+    setIsLoadingSettings(true)
+    try {
+      const settings = await getGiftCardSettings()
+      if (settings) {
+        setPuntosRequeridos(settings.points_required || 100)
+        setValorGiftCard(settings.card_value || 5)
+        setDiasVencimiento(settings.expiration_days || 30)
+        setMaxGiftCards(settings.max_active_cards || 5)
+      }
+    } catch (error) {
+      console.error("Error loading gift card settings:", error)
+      toast.error("Error al cargar la configuración")
+    } finally {
+      setIsLoadingSettings(false)
+    }
+  }
 
   // Contar gift cards por estado
   const countActivas = giftCardsData.filter(gc => gc.estado === "activa").length
@@ -162,17 +192,26 @@ export function GiftCardsView() {
     setValorGiftCard(5)
     setDiasVencimiento(30)
     setMaxGiftCards(5)
+    toast.success("Valores predeterminados restaurados")
   }
 
-  const handleGuardarCambios = () => {
-    console.log("Guardando configuración:", {
-      puntosRequeridos,
-      valorGiftCard,
-      diasVencimiento,
-      maxGiftCards
-    })
-    // Aquí iría la lógica para guardar la configuración
-    setShowConfigSheet(false)
+  const handleGuardarCambios = async () => {
+    setIsSavingSettings(true)
+    try {
+      await upsertGiftCardSettings({
+        points_required: puntosRequeridos,
+        card_value: valorGiftCard,
+        expiration_days: diasVencimiento,
+        max_active_cards: maxGiftCards,
+      })
+      toast.success("Configuración guardada exitosamente")
+      setShowConfigSheet(false)
+    } catch (error) {
+      console.error("Error saving gift card settings:", error)
+      toast.error("Error al guardar la configuración")
+    } finally {
+      setIsSavingSettings(false)
+    }
   }
 
   const metricas = [
@@ -245,112 +284,168 @@ export function GiftCardsView() {
             Administra tarjetas de regalo
           </p>
         </div>
-        <PrimaryButton onClick={() => setShowConfigSheet(true)}>
-          <Settings className="mr-2 h-5 w-5" />
-          Configuración
-        </PrimaryButton>
+        {activeMode === "gestion" && (
+          <PrimaryButton onClick={() => setShowConfigSheet(true)}>
+            <Settings className="mr-2 h-5 w-5" />
+            Configuración
+          </PrimaryButton>
+        )}
       </div>
 
-      {/* Métricas Grid */}
+      {/* Selector Redimir/Gestionar */}
       <div className="px-4 lg:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {metricas.map((metrica, index) => {
-            const Icon = metrica.icon
-            return (
-              <Card
-                key={index}
-                className="p-6 shadow-none"
-                style={{ borderRadius: "30px", border: "1px solid #eeeeee" }}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm text-muted-foreground mb-1">
-                      {metrica.titulo}
-                    </p>
-                    <h3 className="text-3xl font-bold text-foreground mb-2">
-                      {metrica.valor}
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      {metrica.descripcion}
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <Icon className="w-6 h-6 text-primary" />
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center gap-2">
-                  <span
-                    className={`text-xs font-medium ${
-                      metrica.positiva ? "text-green-600" : "text-red-600"
-                    }`}
+        <div className="relative w-full max-w-md mx-auto min-h-[56px] bg-gray-200 rounded-[50px] p-1">
+          {/* Indicador animado */}
+          <div
+            className="absolute top-1 bottom-1 bg-white rounded-[50px] shadow-sm transition-all duration-300 ease-in-out"
+            style={{
+              left: activeMode === "redimir" ? "0.25rem" : "calc(50% + 0.125rem)",
+              width: "calc(50% - 0.25rem)",
+            }}
+          />
+
+          {/* Botones */}
+          <div className="relative grid grid-cols-2 gap-1">
+            <button
+              onClick={() => setActiveMode("redimir")}
+              className={`text-base min-h-[48px] rounded-[50px] cursor-pointer transition-colors duration-300 relative z-10 font-medium ${
+                activeMode === "redimir" ? "text-primary" : "text-muted-foreground"
+              }`}
+            >
+              Redimir
+            </button>
+            <button
+              onClick={() => setActiveMode("gestion")}
+              className={`text-base min-h-[48px] rounded-[50px] cursor-pointer transition-colors duration-300 relative z-10 font-medium ${
+                activeMode === "gestion" ? "text-primary" : "text-muted-foreground"
+              }`}
+            >
+              Gestionar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Vista Redimir */}
+      {activeMode === "redimir" && (
+        <div className="px-4 lg:px-6">
+          <div className="grid grid-cols-1 gap-6 max-w-2xl mx-auto">
+            <Card
+              className="p-8 shadow-none"
+              style={{ borderRadius: "30px", border: "1px solid #eeeeee" }}
+            >
+              <h2 className="text-2xl font-semibold mb-2">Validar Gift Card</h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                Escanea el código QR de la gift card o ingresa el código manualmente. Presiona Enter para validar.
+              </p>
+              <div className="flex gap-3">
+                <FormInput
+                  type="text"
+                  placeholder="Ingresa el código de la gift card..."
+                  value={codigoGiftCard}
+                  onChange={(e) => setCodigoGiftCard(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  className="flex-1"
+                />
+                <PrimaryButton onClick={handleValidarGiftCard}>
+                  <CheckCircle className="mr-2 h-5 w-5" />
+                  Validar
+                </PrimaryButton>
+              </div>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* Vista Gestión */}
+      {activeMode === "gestion" && (
+        <>
+          {/* Métricas Grid */}
+          <div className="px-4 lg:px-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {metricas.map((metrica, index) => {
+                const Icon = metrica.icon
+                return (
+                  <Card
+                    key={index}
+                    className="p-6 shadow-none"
+                    style={{ borderRadius: "30px", border: "1px solid #eeeeee" }}
                   >
-                    {metrica.tendencia}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    vs mes anterior
-                  </span>
-                </div>
-              </Card>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Validar Gift Card */}
-      <div className="px-4 lg:px-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card
-            className="p-6 shadow-none"
-            style={{ borderRadius: "30px", border: "1px solid #eeeeee" }}
-          >
-            <h2 className="text-xl font-semibold mb-2">Validar Gift Card</h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              Escanea el código QR de la gift card o ingresa el código manualmente. Presiona Enter para validar.
-            </p>
-            <div className="flex gap-3">
-              <FormInput
-                type="text"
-                placeholder="Ingresa el código de la gift card..."
-                value={codigoGiftCard}
-                onChange={(e) => setCodigoGiftCard(e.target.value)}
-                onKeyPress={handleKeyPress}
-                className="flex-1"
-              />
-              <PrimaryButton onClick={handleValidarGiftCard}>
-                <CheckCircle className="mr-2 h-5 w-5" />
-                Validar
-              </PrimaryButton>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="text-sm text-muted-foreground mb-1">
+                          {metrica.titulo}
+                        </p>
+                        <h3 className="text-3xl font-bold text-foreground mb-2">
+                          {metrica.valor}
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          {metrica.descripcion}
+                        </p>
+                      </div>
+                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Icon className="w-6 h-6 text-primary" />
+                      </div>
+                    </div>
+                    <div className="mt-4 flex items-center gap-2">
+                      <span
+                        className={`text-xs font-medium ${
+                          metrica.positiva ? "text-green-600" : "text-red-600"
+                        }`}
+                      >
+                        {metrica.tendencia}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        vs mes anterior
+                      </span>
+                    </div>
+                  </Card>
+                )
+              })}
             </div>
-          </Card>
-        </div>
-      </div>
+          </div>
 
-      {/* Listado de Gift Cards con Tabs */}
-      <div className="px-4 lg:px-6">
+          {/* Listado de Gift Cards con Tabs */}
+          <div className="px-4 lg:px-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-4 w-full min-h-[56px] grid grid-cols-3" style={{ borderRadius: '50px' }}>
-            <TabsTrigger
-              value="activas"
-              className="text-base min-h-[56px] data-[state=active]:bg-white data-[state=active]:text-primary cursor-pointer"
-              style={{ borderRadius: '50px' }}
-            >
-              Activas ({countActivas})
-            </TabsTrigger>
-            <TabsTrigger
-              value="redimidas"
-              className="text-base min-h-[56px] data-[state=active]:bg-white data-[state=active]:text-primary cursor-pointer"
-              style={{ borderRadius: '50px' }}
-            >
-              Redimidas ({countRedimidas})
-            </TabsTrigger>
-            <TabsTrigger
-              value="vencidas"
-              className="text-base min-h-[56px] data-[state=active]:bg-white data-[state=active]:text-primary cursor-pointer"
-              style={{ borderRadius: '50px' }}
-            >
-              Vencidas ({countVencidas})
-            </TabsTrigger>
-          </TabsList>
+          <div className="relative mb-4 w-full min-h-[56px] bg-gray-200 rounded-[50px] p-1">
+            {/* Indicador animado */}
+            <div
+              className="absolute top-1 bottom-1 bg-white rounded-[50px] shadow-sm transition-all duration-300 ease-in-out"
+              style={{
+                left: activeTab === "activas" ? "0.25rem" : activeTab === "redimidas" ? "calc(33.333% + 0.125rem)" : "calc(66.666% + 0.125rem)",
+                width: "calc(33.333% - 0.25rem)",
+              }}
+            />
+
+            {/* Tabs */}
+            <div className="relative grid grid-cols-3 gap-1">
+              <button
+                onClick={() => setActiveTab("activas")}
+                className={`text-base min-h-[48px] rounded-[50px] cursor-pointer transition-colors duration-300 relative z-10 font-medium ${
+                  activeTab === "activas" ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                Activas ({countActivas})
+              </button>
+              <button
+                onClick={() => setActiveTab("redimidas")}
+                className={`text-base min-h-[48px] rounded-[50px] cursor-pointer transition-colors duration-300 relative z-10 font-medium ${
+                  activeTab === "redimidas" ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                Redimidas ({countRedimidas})
+              </button>
+              <button
+                onClick={() => setActiveTab("vencidas")}
+                className={`text-base min-h-[48px] rounded-[50px] cursor-pointer transition-colors duration-300 relative z-10 font-medium ${
+                  activeTab === "vencidas" ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                Vencidas ({countVencidas})
+              </button>
+            </div>
+          </div>
 
           <TabsContent value={activeTab}>
             {filteredGiftCards.length > 0 ? (
@@ -435,7 +530,9 @@ export function GiftCardsView() {
             )}
           </TabsContent>
         </Tabs>
-      </div>
+          </div>
+        </>
+      )}
 
       {/* Sheet de Configuración */}
       <Sheet open={showConfigSheet} onOpenChange={setShowConfigSheet}>
@@ -531,11 +628,11 @@ export function GiftCardsView() {
           </div>
 
           <SheetFooter>
-            <SecondaryButton onClick={handleRestaurarPredeterminados}>
+            <SecondaryButton onClick={handleRestaurarPredeterminados} disabled={isSavingSettings}>
               Restaurar predeterminados
             </SecondaryButton>
-            <PrimaryButton onClick={handleGuardarCambios}>
-              Guardar cambios
+            <PrimaryButton onClick={handleGuardarCambios} disabled={isSavingSettings}>
+              {isSavingSettings ? "Guardando..." : "Guardar cambios"}
             </PrimaryButton>
           </SheetFooter>
         </SheetContent>
