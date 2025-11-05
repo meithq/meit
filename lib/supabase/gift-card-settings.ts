@@ -1,11 +1,11 @@
 import { createClient } from './client'
-import { getCurrentUser } from './auth'
+import { getBusinessSettings } from './business-settings'
 
 export interface GiftCardSettings {
   id?: number
   created_at?: string
   updated_at?: string
-  owner?: string
+  business_settings_id?: number
   points_required?: number
   card_value?: number
   expiration_days?: number
@@ -13,24 +13,26 @@ export interface GiftCardSettings {
 }
 
 /**
- * Get gift card settings for the current user
+ * Get gift card settings for the current business
  */
 export async function getGiftCardSettings(): Promise<GiftCardSettings | null> {
   try {
     const supabase = createClient()
-    const user = await getCurrentUser()
 
-    console.log('🔍 getGiftCardSettings - user:', user?.id)
+    // Obtener el negocio actual del usuario
+    const businessSettings = await getBusinessSettings()
 
-    if (!user) {
-      console.error('❌ User not authenticated')
-      throw new Error('User not authenticated')
+    if (!businessSettings?.id) {
+      console.log('⚠️ No business settings found')
+      return null
     }
+
+    console.log('🔍 getGiftCardSettings - business_settings_id:', businessSettings.id)
 
     const { data, error } = await supabase
       .from('gift_card_settings')
       .select('*')
-      .eq('owner', user.id)
+      .eq('business_settings_id', businessSettings.id)
       .single()
 
     if (error) {
@@ -52,25 +54,27 @@ export async function getGiftCardSettings(): Promise<GiftCardSettings | null> {
 }
 
 /**
- * Create gift card settings for the current user
+ * Create gift card settings for the current business
  */
 export async function createGiftCardSettings(
-  settings: Omit<GiftCardSettings, 'id' | 'created_at' | 'updated_at' | 'owner'>
+  settings: Omit<GiftCardSettings, 'id' | 'created_at' | 'updated_at' | 'business_settings_id'>
 ): Promise<GiftCardSettings> {
   try {
     const supabase = createClient()
-    const user = await getCurrentUser()
 
-    console.log('➕ createGiftCardSettings - user:', user?.id)
-    console.log('➕ createGiftCardSettings - settings:', settings)
+    // Obtener el negocio actual del usuario
+    const businessSettings = await getBusinessSettings()
 
-    if (!user) {
-      console.error('❌ User not authenticated')
-      throw new Error('User not authenticated')
+    if (!businessSettings?.id) {
+      console.error('❌ No business settings found')
+      throw new Error('Business settings not found')
     }
 
+    console.log('➕ createGiftCardSettings - business_settings_id:', businessSettings.id)
+    console.log('➕ createGiftCardSettings - settings:', settings)
+
     const insertData = {
-      owner: user.id,
+      business_settings_id: businessSettings.id,
       ...settings,
     }
     console.log('➕ Inserting data:', insertData)
@@ -95,30 +99,32 @@ export async function createGiftCardSettings(
 }
 
 /**
- * Update gift card settings for the current user
+ * Update gift card settings for the current business
  */
 export async function updateGiftCardSettings(
   id: number,
-  settings: Partial<Omit<GiftCardSettings, 'id' | 'created_at' | 'updated_at' | 'owner'>>
+  settings: Partial<Omit<GiftCardSettings, 'id' | 'created_at' | 'updated_at' | 'business_settings_id'>>
 ): Promise<GiftCardSettings> {
   try {
     const supabase = createClient()
-    const user = await getCurrentUser()
 
-    console.log('✏️ updateGiftCardSettings - user:', user?.id)
+    // Obtener el negocio actual del usuario
+    const businessSettings = await getBusinessSettings()
+
+    if (!businessSettings?.id) {
+      console.error('❌ No business settings found')
+      throw new Error('Business settings not found')
+    }
+
+    console.log('✏️ updateGiftCardSettings - business_settings_id:', businessSettings.id)
     console.log('✏️ updateGiftCardSettings - id:', id)
     console.log('✏️ updateGiftCardSettings - settings:', settings)
-
-    if (!user) {
-      console.error('❌ User not authenticated')
-      throw new Error('User not authenticated')
-    }
 
     const { data, error } = await supabase
       .from('gift_card_settings')
       .update(settings)
       .eq('id', id)
-      .eq('owner', user.id) // Ensure user owns this record
+      .eq('business_settings_id', businessSettings.id) // Ensure user owns this business
       .select()
       .single()
 
@@ -139,7 +145,7 @@ export async function updateGiftCardSettings(
  * Upsert gift card settings (create if not exists, update if exists)
  */
 export async function upsertGiftCardSettings(
-  settings: Omit<GiftCardSettings, 'id' | 'created_at' | 'updated_at' | 'owner'>
+  settings: Omit<GiftCardSettings, 'id' | 'created_at' | 'updated_at' | 'business_settings_id'>
 ): Promise<GiftCardSettings> {
   try {
     console.log('🔍 upsertGiftCardSettings called with:', settings)

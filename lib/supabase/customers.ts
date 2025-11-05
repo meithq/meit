@@ -170,3 +170,83 @@ export async function getActiveCustomers(): Promise<Customer[]> {
 
   return data || []
 }
+
+/**
+ * Obtiene un cliente por ID
+ */
+export async function getCustomerById(customerId: string): Promise<Customer | null> {
+  const supabase = createClient()
+
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('id', customerId)
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      // No se encontró el cliente
+      return null
+    }
+    console.error('Error fetching customer:', error)
+    throw error
+  }
+
+  return data
+}
+
+/**
+ * Agregar puntos a un cliente
+ * Actualiza tanto total_points como lifetime_points
+ */
+export async function addPointsToCustomer(
+  customerId: string,
+  pointsToAdd: number
+): Promise<Customer> {
+  const supabase = createClient()
+
+  console.log('addPointsToCustomer called with:', { customerId, pointsToAdd })
+
+  // Primero obtener el cliente actual para conocer sus puntos
+  const customer = await getCustomerById(customerId)
+
+  console.log('Customer found:', customer)
+
+  if (!customer) {
+    console.error('Customer not found for ID:', customerId)
+    throw new Error('Cliente no encontrado')
+  }
+
+  const currentTotalPoints = customer.total_points || 0
+  const currentLifetimePoints = customer.lifetime_points || 0
+
+  // Calcular nuevos valores
+  const newTotalPoints = currentTotalPoints + pointsToAdd
+  const newLifetimePoints = currentLifetimePoints + pointsToAdd
+
+  // Actualizar el cliente
+  const { data, error } = await supabase
+    .from('customers')
+    .update({
+      total_points: newTotalPoints,
+      lifetime_points: newLifetimePoints,
+      last_visit_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', customerId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error adding points to customer:', error)
+    console.error('Error details:', JSON.stringify(error, null, 2))
+    throw new Error(`Error al actualizar puntos del cliente: ${error.message || 'Error desconocido'}`)
+  }
+
+  if (!data) {
+    throw new Error('No se recibieron datos después de actualizar los puntos')
+  }
+
+  console.log('Points successfully added to customer:', data)
+  return data
+}

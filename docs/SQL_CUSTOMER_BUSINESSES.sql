@@ -52,6 +52,12 @@ CREATE INDEX IF NOT EXISTS idx_customer_businesses_last_visit
   ON customer_businesses(last_visit_at DESC);
 
 -- ============================================================================
+-- HABILITAR REALTIME para actualizaciones en tiempo real
+-- ============================================================================
+
+ALTER TABLE customer_businesses REPLICA IDENTITY FULL;
+
+-- ============================================================================
 -- TRIGGER para actualizar updated_at automáticamente
 -- ============================================================================
 
