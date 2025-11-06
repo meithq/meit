@@ -1,22 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { UserCheck } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
-import { 
-  ChartConfig, 
-  ChartContainer, 
-  ChartTooltip, 
-  ChartTooltipContent, 
+import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
 } from "@/components/ui/chart"
-
-// Datos vacíos - cargar desde la base de datos
-const data7D: Array<{ day: string; checkins: number }> = []
-const data30D: Array<{ day: string; checkins: number }> = []
-const data90D: Array<{ day: string; checkins: number }> = []
+import { getCheckinsChartData, type ChartDataPoint } from "@/lib/supabase/dashboard"
 
 const chartConfig = {
   checkins: {
@@ -27,21 +23,25 @@ const chartConfig = {
 
 export function CheckinsCard() {
   const [period, setPeriod] = useState("7D")
-  
-  const getData = () => {
-    switch (period) {
-      case "7D":
-        return data7D
-      case "30D":
-        return data30D
-      case "90D":
-        return data90D
-      default:
-        return data7D
-    }
-  }
+  const [data, setData] = useState<Array<{ day: string; checkins: number }>>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const data = getData()
+  useEffect(() => {
+    async function loadData() {
+      setIsLoading(true)
+      try {
+        const days = period === "7D" ? 7 : period === "30D" ? 30 : 90
+        const chartData = await getCheckinsChartData(days)
+        setData(chartData.map(item => ({ day: item.day, checkins: item.value })))
+      } catch (error) {
+        console.error("Error loading checkins data:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadData()
+  }, [period])
 
   const calculateAverage = () => {
     if (data.length === 0) return 0
@@ -88,45 +88,61 @@ export function CheckinsCard() {
         </Tabs>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{getTotal().toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}</div>
+        <div className="text-2xl font-bold">
+          {isLoading ? (
+            <span className="animate-pulse">...</span>
+          ) : (
+            getTotal().toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+          )}
+        </div>
         <p className="text-xs text-muted-foreground">
           {period === "7D" ? "últimos 7 días" : period === "30D" ? "últimos 30 días" : "últimos 90 días"}
         </p>
         <div className="mt-4 h-[120px] overflow-hidden">
-          <ChartContainer config={chartConfig} className="h-full w-full">
-            <AreaChart
-              accessibilityLayer
-              data={getData()}
-              margin={{
-                left: 12,
-                right: 12,
-                top: 8,
-                bottom: 8,
-              }}
-            >
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="day"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                tick={{ fontSize: 12 }}
-                interval="preserveStartEnd"
-              />
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent indicator="line" />}
-              />
-              <Area
-                dataKey="checkins"
-                type="monotone"
-                fill="var(--color-checkins)"
-                fillOpacity={0.4}
-                stroke="var(--color-checkins)"
-                strokeWidth={2}
-              />
-            </AreaChart>
-          </ChartContainer>
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <span className="text-sm text-muted-foreground">Cargando...</span>
+            </div>
+          ) : data.length === 0 ? (
+            <div className="flex items-center justify-center h-full">
+              <span className="text-sm text-muted-foreground">Sin datos</span>
+            </div>
+          ) : (
+            <ChartContainer config={chartConfig} className="h-full w-full">
+              <AreaChart
+                accessibilityLayer
+                data={data}
+                margin={{
+                  left: 12,
+                  right: 12,
+                  top: 8,
+                  bottom: 8,
+                }}
+              >
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="day"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tick={{ fontSize: 12 }}
+                  interval="preserveStartEnd"
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={<ChartTooltipContent indicator="line" />}
+                />
+                <Area
+                  dataKey="checkins"
+                  type="monotone"
+                  fill="var(--color-checkins)"
+                  fillOpacity={0.4}
+                  stroke="var(--color-checkins)"
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ChartContainer>
+          )}
         </div>
         <Separator className="my-4" />
         <div className="flex items-center justify-between">
