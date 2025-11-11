@@ -181,8 +181,14 @@ export function SucursalesView() {
               <title>Imprimir QR - ${selectedSucursal?.name}</title>
               <style>
                 @media print {
-                  @page { margin: 0; }
-                  body { margin: 0; }
+                  @page {
+                    margin: 0;
+                    size: A4 portrait;
+                  }
+                  body {
+                    margin: 0;
+                    padding: 0;
+                  }
                 }
                 body {
                   display: flex;
@@ -191,92 +197,143 @@ export function SucursalesView() {
                   justify-content: center;
                   min-height: 100vh;
                   margin: 0;
-                  padding: 40px;
+                  padding: 20px;
                   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
                   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  box-sizing: border-box;
                 }
                 .container {
                   background: white;
                   border-radius: 30px;
-                  padding: 60px;
-                  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                  border: 2px solid #8b5cf6;
+                  padding: 30px;
                   text-align: center;
-                  max-width: 600px;
+                  max-width: 650px;
+                  width: 100%;
+                  box-sizing: border-box;
                 }
                 h1 {
-                  font-size: 42px;
-                  margin-bottom: 10px;
+                  font-size: 36px;
+                  margin: 0 0 5px 0;
                   color: #1a1a1a;
                   font-weight: 700;
+                  letter-spacing: -0.5px;
                 }
                 .address {
-                  font-size: 18px;
+                  font-size: 15px;
                   color: #666;
-                  margin-bottom: 40px;
+                  margin: 0 0 20px 0;
+                  font-weight: 500;
                 }
                 .qr-container {
-                  background: white;
-                  padding: 30px;
+                  background: linear-gradient(135deg, #f5f3ff 0%, #faf5ff 100%);
+                  padding: 20px;
                   border-radius: 20px;
-                  border: 3px solid #667eea;
+                  border: 2px solid #8b5cf6;
                   display: inline-block;
-                  margin-bottom: 40px;
+                  margin-bottom: 20px;
+                  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
                 }
                 img {
-                  width: 350px;
-                  height: 350px;
+                  width: 280px;
+                  height: 280px;
                   display: block;
+                  border-radius: 10px;
                 }
                 .instructions {
-                  background: #f8f9fa;
-                  padding: 30px;
+                  background: linear-gradient(135deg, #f5f3ff 0%, #faf5ff 100%);
+                  padding: 20px;
                   border-radius: 20px;
-                  margin-top: 30px;
+                  margin-top: 15px;
+                  border: 1px solid #e9d5ff;
                 }
                 .instructions h2 {
-                  font-size: 24px;
-                  margin-bottom: 20px;
-                  color: #667eea;
+                  font-size: 20px;
+                  margin: 0 0 15px 0;
+                  color: #8b5cf6;
+                  font-weight: 700;
+                  text-align: center;
                 }
-                .instructions ol {
-                  text-align: left;
-                  font-size: 18px;
-                  line-height: 1.8;
-                  color: #333;
-                  padding-left: 25px;
+                .steps {
+                  display: grid;
+                  grid-template-columns: repeat(2, 1fr);
+                  gap: 12px;
                   margin: 0;
+                  padding: 0;
+                  list-style: none;
                 }
-                .instructions li {
-                  margin-bottom: 10px;
+                .step {
+                  background: white;
+                  padding: 12px;
+                  border-radius: 12px;
+                  border: 1px solid #e9d5ff;
+                  display: flex;
+                  align-items: center;
+                  gap: 10px;
+                }
+                .step-number {
+                  background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%);
+                  color: white;
+                  width: 28px;
+                  height: 28px;
+                  border-radius: 50%;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  font-weight: 700;
+                  font-size: 14px;
+                  flex-shrink: 0;
+                }
+                .step-text {
+                  font-size: 13px;
+                  color: #1a1a1a;
+                  line-height: 1.4;
+                  text-align: left;
                 }
                 .footer {
-                  margin-top: 30px;
-                  font-size: 16px;
-                  color: #999;
+                  margin-top: 15px;
+                  font-size: 14px;
+                  color: #8b5cf6;
+                  font-weight: 600;
+                }
+                .footer p {
+                  margin: 0;
                 }
               </style>
             </head>
             <body>
               <div class="container">
-                <h1>🎁 ${selectedSucursal?.name}</h1>
-                ${selectedSucursal?.address ? `<p class="address">📍 ${selectedSucursal.address}</p>` : ''}
+                <h1>${businessName || 'Mi Negocio'}</h1>
+                <p class="address">📍 ${selectedSucursal?.name}${selectedSucursal?.address ? ` - ${selectedSucursal.address}` : ''}</p>
 
                 <div class="qr-container">
                   <img src="${qrCodeUrl}" alt="QR Code" />
                 </div>
 
                 <div class="instructions">
-                  <h2>📱 ¿Cómo hacer check-in?</h2>
-                  <ol>
-                    <li>Escanea el código QR con tu cámara</li>
-                    <li>Se abrirá WhatsApp automáticamente</li>
-                    <li>Presiona "Enviar" para hacer check-in</li>
-                    <li>¡Recibe tus puntos al instante!</li>
-                  </ol>
+                  <h2>¿Cómo hacer check-in?</h2>
+                  <div class="steps">
+                    <div class="step">
+                      <div class="step-number">1</div>
+                      <div class="step-text">Escanea el QR con tu cámara</div>
+                    </div>
+                    <div class="step">
+                      <div class="step-number">2</div>
+                      <div class="step-text">Se abrirá WhatsApp</div>
+                    </div>
+                    <div class="step">
+                      <div class="step-number">3</div>
+                      <div class="step-text">Presiona "Enviar"</div>
+                    </div>
+                    <div class="step">
+                      <div class="step-number">4</div>
+                      <div class="step-text">¡Recibe tus puntos!</div>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="footer">
-                  <p>✨ Gana puntos y obtén recompensas ✨</p>
+                  <p>Gana puntos y obtén recompensas</p>
                 </div>
               </div>
               <script>
