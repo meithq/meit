@@ -400,10 +400,6 @@ Envía *PUNTOS* para ver tu balance actual.`
 
           message += `   ⭐ Puntos: ${challenge.points}\n`
 
-          if (challenge.target_value) {
-            message += `   🎯 Objetivo: ${challenge.target_value}\n`
-          }
-
           if (cIndex < challenges.length - 1) {
             message += '\n'
           }
@@ -472,23 +468,6 @@ function formatChallengesMessage(businessName: string, challenges: ActiveChallen
     }
 
     message += `   ⭐ Puntos: ${challenge.points}\n`
-
-    // Formatear el tipo de reto de forma legible
-    const challengeTypeMap: { [key: string]: string } = {
-      'visits': 'Visitas',
-      'purchases': 'Compras',
-      'referrals': 'Referidos',
-      'points': 'Acumulación de puntos',
-      'social': 'Social media',
-      'custom': 'Personalizado',
-    }
-
-    const challengeTypeLabel = challengeTypeMap[challenge.challenge_type] || challenge.challenge_type
-    message += `   🎲 Tipo: ${challengeTypeLabel}\n`
-
-    if (challenge.target_value) {
-      message += `   🎯 Objetivo: ${challenge.target_value}\n`
-    }
 
     // Agregar separador entre retos excepto el último
     if (index < challenges.length - 1) {
