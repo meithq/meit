@@ -19,9 +19,17 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { Search, Home, Check, Gift, UserPlus, X } from "lucide-react"
+import { Search, Home, Check, Gift, UserPlus, X, Trophy } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
 import { useNavigation } from "@/contexts/navigation-context"
+import { getBusinessSettings } from "@/lib/supabase/business-settings"
+import { getCustomersByBusiness, addPointsToCustomerBusiness, type CustomerBusinessWithDetails } from "@/lib/supabase/customer-businesses"
+import { getBusinesses, type Business } from "@/lib/supabase/businesses"
+import { getActiveChallenges, type Challenge } from "@/lib/supabase/challenges"
+import { validateAdminPin, createPointsAudit, getCurrentUser } from "@/lib/supabase/points-audit"
+import { checkAndGenerateGiftCards } from "@/lib/supabase/gift-card-auto-generation"
+import { FormSelect } from "@/components/ui/form-select"
+import { toast } from "sonner"
 
 interface Cliente {
   id: string
@@ -31,21 +39,6 @@ interface Cliente {
   giftCards: number
   estado: "activo" | "inactivo"
 }
-
-interface Reto {
-  id: string
-  titulo: string
-  descripcion: string
-  minimo: string
-  tipo: string
-  puntos: number
-}
-
-// Array vacío - cargar datos desde la base de datos
-const clientesEjemplo: Cliente[] = []
-
-// Array vacío - cargar datos desde la base de datos
-const retosDisponibles: Reto[] = []
 
 export function POSView() {
   const { setView } = useNavigation()
@@ -61,8 +54,105 @@ export function POSView() {
   const [modalState, setModalState] = useState<"input" | "loading" | "success">("input")
   const [progress, setProgress] = useState(0)
 
+  // Estados para base de datos
+  const [clientes, setClientes] = useState<Cliente[]>([])
+  const [isLoadingClientes, setIsLoadingClientes] = useState(false)
+  const [retosDisponibles, setRetosDisponibles] = useState<Challenge[]>([])
+  const [isLoadingRetos, setIsLoadingRetos] = useState(false)
+  const [sucursales, setSucursales] = useState<Business[]>([])
+  const [selectedSucursal, setSelectedSucursal] = useState<string>("")
+  const [currentBusinessId, setCurrentBusinessId] = useState<number | null>(null)
+  const [currentBusinessSettingsId, setCurrentBusinessSettingsId] = useState<number | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  // Cargar clientes y retos al montar
+  useEffect(() => {
+    loadInitialData()
+  }, [])
+
+  const loadInitialData = async () => {
+    // Cargar usuario actual
+    const user = await getCurrentUser()
+    if (user) {
+      setCurrentUserId(user.id)
+    }
+
+    // Cargar sucursales
+    await loadSucursales()
+  }
+
+  const loadSucursales = async () => {
+    try {
+      const businessesData = await getBusinesses()
+      setSucursales(businessesData)
+
+      // Si hay sucursales, seleccionar la primera por defecto
+      if (businessesData.length > 0 && businessesData[0].id) {
+        setSelectedSucursal(businessesData[0].id.toString())
+        setCurrentBusinessId(businessesData[0].id)
+
+        // Cargar datos de la primera sucursal
+        if (businessesData[0].business_settings_id) {
+          setCurrentBusinessSettingsId(businessesData[0].business_settings_id)
+          loadClientes(businessesData[0].business_settings_id)
+          loadRetos(businessesData[0].id)
+        }
+      }
+    } catch (error) {
+      console.error('Error loading sucursales:', error)
+      toast.error('Error al cargar las sucursales')
+    }
+  }
+
+  const loadRetos = async (businessId: number) => {
+    try {
+      setIsLoadingRetos(true)
+
+      // Obtener retos activos de la sucursal
+      const retosData = await getActiveChallenges(businessId)
+      setRetosDisponibles(retosData)
+    } catch (error) {
+      console.error('Error loading challenges:', error)
+      toast.error('Error al cargar los retos')
+    } finally {
+      setIsLoadingRetos(false)
+    }
+  }
+
+  const loadClientes = async (businessSettingsId: number) => {
+    try {
+      setIsLoadingClientes(true)
+
+      // Obtener clientes del negocio
+      const customersData = await getCustomersByBusiness(businessSettingsId)
+      console.log('Raw customers data:', customersData)
+
+      // Transformar datos al formato esperado
+      const clientesTransformados: Cliente[] = customersData.map(customer => {
+        console.log('Mapping customer:', customer)
+        return {
+          id: customer.customer_id, // Este es el UUID del cliente en la tabla customers
+          nombre: customer.customer_name || 'Sin nombre',
+          telefono: customer.phone || 'Sin teléfono',
+          puntos: customer.total_points || 0,
+          giftCards: 0, // TODO: Implementar cuando tengamos gift cards por cliente
+          estado: customer.customer_is_active ? 'activo' : 'inactivo'
+        }
+      })
+
+      console.log('Clientes transformados:', clientesTransformados)
+
+      setClientes(clientesTransformados)
+    } catch (error) {
+      console.error('Error loading customers:', error)
+      toast.error('Error al cargar los clientes')
+    } finally {
+      setIsLoadingClientes(false)
+    }
+  }
+
   const filteredClientes = searchQuery
-    ? clientesEjemplo.filter(
+    ? clientes.filter(
         (c) =>
           c.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
           c.telefono.includes(searchQuery)
@@ -88,6 +178,24 @@ export function POSView() {
     setSelectedRetos([])
   }
 
+  const handleSucursalChange = (sucursalId: string) => {
+    setSelectedSucursal(sucursalId)
+
+    // Buscar la sucursal seleccionada
+    const sucursal = sucursales.find(s => s.id?.toString() === sucursalId)
+    if (sucursal?.id && sucursal.business_settings_id) {
+      setCurrentBusinessId(sucursal.id)
+      setCurrentBusinessSettingsId(sucursal.business_settings_id)
+
+      // Recargar datos de la nueva sucursal
+      loadClientes(sucursal.business_settings_id)
+      loadRetos(sucursal.id)
+
+      // Limpiar selección actual
+      handleLimpiar()
+    }
+  }
+
   const handleToggleReto = (retoId: string) => {
     setSelectedRetos((prev) =>
       prev.includes(retoId)
@@ -98,7 +206,7 @@ export function POSView() {
 
   const totalPuntos = selectedRetos.reduce((sum, retoId) => {
     const reto = retosDisponibles.find((r) => r.id === retoId)
-    return sum + (reto?.puntos || 0)
+    return sum + (reto?.points || 0)
   }, 0)
 
   // Actualizar paso actual basado en el progreso
@@ -144,43 +252,148 @@ export function POSView() {
 
   const handleConfirmarAsignacion = async () => {
     const pinCompleto = pin.join("")
-    if (pinCompleto.length === 4) {
-      // Cambiar a estado loading
-      setModalState("loading")
-      setProgress(0)
+    if (pinCompleto.length !== 4) {
+      toast.error('Error', {
+        description: 'Por favor ingresa un PIN de 4 dígitos'
+      })
+      return
+    }
 
-      // Simular progreso
-      const progressInterval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 100) {
-            clearInterval(progressInterval)
-            return 100
-          }
-          return prev + 10
-        })
-      }, 100)
+    // Validar que tengamos todos los datos necesarios
+    if (!currentUserId) {
+      toast.error('Error', {
+        description: 'No se pudo identificar al usuario actual'
+      })
+      return
+    }
 
-      // Simular llamada API
-      setTimeout(() => {
+    if (!currentBusinessId) {
+      toast.error('Error', {
+        description: 'No se pudo identificar la sucursal'
+      })
+      return
+    }
+
+    if (!currentBusinessSettingsId) {
+      toast.error('Error', {
+        description: 'No se pudo identificar la configuración del negocio'
+      })
+      return
+    }
+
+    if (!cliente) {
+      toast.error('Error', {
+        description: 'No se ha seleccionado un cliente'
+      })
+      return
+    }
+
+    // Cambiar a estado loading
+    setModalState("loading")
+    setProgress(0)
+
+    // Simular progreso visual
+    const progressInterval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 95) {
+          return prev
+        }
+        return prev + 5
+      })
+    }, 100)
+
+    try {
+      // Validar el PIN contra la base de datos
+      const adminUser = await validateAdminPin(pinCompleto)
+
+      if (!adminUser) {
         clearInterval(progressInterval)
-        setProgress(100)
+        setModalState("input")
+        setProgress(0)
+        toast.error('PIN inválido', {
+          description: 'El PIN ingresado no es válido o no pertenece a un administrador'
+        })
+        return
+      }
 
-        // Cambiar a estado success
+      // Crear registros de auditoría para cada reto seleccionado
+      for (const retoId of selectedRetos) {
+        const reto = retosDisponibles.find(r => r.id === retoId)
+        if (!reto) continue
+
+        await createPointsAudit({
+          operator_id: currentUserId,
+          admin_id: adminUser.id,
+          customer_id: cliente.id,
+          business_id: currentBusinessId,
+          points_assigned: reto.points,
+          challenge_id: reto.id
+        })
+      }
+
+      // Agregar los puntos al cliente en la relación cliente-negocio
+      console.log('Attempting to add points to customer-business:', {
+        customerId: cliente.id,
+        customerName: cliente.nombre,
+        businessSettingsId: currentBusinessSettingsId,
+        points: totalPuntos
+      })
+      await addPointsToCustomerBusiness(cliente.id, currentBusinessSettingsId, totalPuntos)
+
+      // Verificar y generar gift cards automáticamente si el cliente califica
+      console.log('🎁 Checking if customer qualifies for gift cards...')
+      const giftCardResults = await checkAndGenerateGiftCards(
+        cliente.id,
+        currentBusinessSettingsId
+      )
+
+      // Log resultados de gift cards
+      giftCardResults.forEach((result, index) => {
+        if (result.generated) {
+          console.log(`✅ Gift card ${index + 1} generated:`, result.giftCard?.code)
+          toast.success('🎁 Gift Card Generada', {
+            description: `Se generó una gift card de $${result.giftCard?.value} USD`,
+            duration: 5000,
+          })
+        } else {
+          console.log(`ℹ️ Gift card ${index + 1}:`, result.message)
+        }
+      })
+
+      // Completar progreso
+      clearInterval(progressInterval)
+      setProgress(100)
+
+      // Cambiar a estado success
+      setTimeout(() => {
+        setModalState("success")
+        toast.success('Puntos asignados', {
+          description: `Se asignaron ${totalPuntos} puntos exitosamente`
+        })
+
+        // Cerrar modal después de 2 segundos
         setTimeout(() => {
-          setModalState("success")
-          console.log("PIN ingresado:", pinCompleto)
-          console.log("Puntos asignados:", totalPuntos)
+          setShowPinModal(false)
+          setModalState("input")
+          setPin(["", "", "", ""])
+          setProgress(0)
+          handleLimpiar()
+        }, 2000)
+      }, 300)
+    } catch (error) {
+      clearInterval(progressInterval)
+      setModalState("input")
+      setProgress(0)
+      console.error('Error al asignar puntos:', error)
 
-          // Cerrar modal después de 2 segundos
-          setTimeout(() => {
-            setShowPinModal(false)
-            setModalState("input")
-            setPin(["", "", "", ""])
-            setProgress(0)
-            handleLimpiar()
-          }, 2000)
-        }, 300)
-      }, 1000)
+      // Extraer mensaje de error más descriptivo
+      const errorMessage = error instanceof Error
+        ? error.message
+        : 'No se pudieron asignar los puntos. Intenta de nuevo.'
+
+      toast.error('Error', {
+        description: errorMessage
+      })
     }
   }
 
@@ -220,12 +433,31 @@ export function POSView() {
 
       {/* Header Section */}
       <div className="px-4 lg:px-6">
-        <h1 className="text-3xl font-bold text-foreground mb-2">
-          Punto de Venta
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          Gestiona la asignación de puntos a tus clientes
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold text-foreground mb-2">
+              Punto de Venta
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              Gestiona la asignación de puntos a tus clientes
+            </p>
+          </div>
+
+          {/* Selector de Sucursal */}
+          {sucursales.length > 0 && (
+            <div className="w-64">
+              <FormSelect
+                placeholder="Selecciona sucursal"
+                value={selectedSucursal}
+                onValueChange={handleSucursalChange}
+                options={sucursales.map(sucursal => ({
+                  value: sucursal.id?.toString() || '',
+                  label: sucursal.name || 'Sin nombre'
+                }))}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Stepper */}
@@ -313,22 +545,42 @@ export function POSView() {
                 </div>
 
                 {/* Dropdown de resultados */}
-                {showDropdown && filteredClientes.length > 0 && (
+                {showDropdown && searchQuery && (
                   <div
                     className="absolute top-full left-0 right-0 mt-2 bg-white border rounded-[24px] shadow-lg z-50 max-h-[300px] overflow-y-auto"
                     style={{ borderColor: '#eeeeee' }}
                   >
-                    {filteredClientes.map((clienteItem) => (
-                      <div
-                        key={clienteItem.id}
-                        onClick={() => handleSelectCliente(clienteItem)}
-                        className="px-4 py-3 hover:bg-primary/10 cursor-pointer transition-colors first:rounded-t-[24px] last:rounded-b-[24px]"
-                      >
-                        <p className="text-sm font-medium text-foreground">
-                          {clienteItem.nombre} - {clienteItem.telefono}
+                    {isLoadingClientes ? (
+                      <div className="px-4 py-6 text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                        <p className="text-sm text-muted-foreground">Cargando clientes...</p>
+                      </div>
+                    ) : filteredClientes.length > 0 ? (
+                      filteredClientes.map((clienteItem) => (
+                        <div
+                          key={clienteItem.id}
+                          onClick={() => handleSelectCliente(clienteItem)}
+                          className="px-4 py-3 hover:bg-primary/10 cursor-pointer transition-colors first:rounded-t-[24px] last:rounded-b-[24px]"
+                        >
+                          <p className="text-sm font-medium text-foreground">
+                            {clienteItem.nombre}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {clienteItem.telefono} • {clienteItem.puntos} pts
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-4 py-6 text-center">
+                        <Search className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">
+                          No se encontraron clientes
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Intenta con otro nombre o teléfono
                         </p>
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </div>
@@ -390,59 +642,99 @@ export function POSView() {
                     </p>
                   </div>
                 </div>
+              ) : isLoadingRetos ? (
+                <div className="flex items-center justify-center min-h-[200px]">
+                  <div className="inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : retosDisponibles.length === 0 ? (
+                <div className="flex items-center justify-center min-h-[200px] text-center">
+                  <div>
+                    <div className="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center mx-auto mb-3">
+                      <Trophy className="h-8 w-8 text-primary/40" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      No hay retos activos disponibles
+                    </p>
+                  </div>
+                </div>
               ) : (
                 <div className="space-y-3">
-                  {retosDisponibles.map((reto) => (
-                    <div
-                      key={reto.id}
-                      onClick={() => handleToggleReto(reto.id)}
-                      className={`relative p-4 border rounded-[24px] cursor-pointer transition-all ${
-                        selectedRetos.includes(reto.id)
-                          ? 'border-primary bg-primary/5'
-                          : 'border-[#eeeeee] hover:border-primary/50'
-                      }`}
-                    >
-                      <div className="flex gap-3">
-                        {/* Icono circular */}
-                        <div className="flex-shrink-0 w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                          <Gift className="h-6 w-6 text-primary" />
-                        </div>
+                  {retosDisponibles.map((reto) => {
+                    const getTipoLabel = (tipo: string) => {
+                      switch(tipo) {
+                        case 'monto_minimo': return 'Monto mínimo'
+                        case 'horario_visita': return 'Horario específico'
+                        case 'frecuencia_visitas': return 'Frecuencia'
+                        case 'categoria_producto': return 'Categoría'
+                        default: return tipo
+                      }
+                    }
 
-                        {/* Contenido */}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-foreground mb-1">
-                            {reto.titulo}
-                          </h3>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            {reto.descripcion}
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">Mínimo:</span>
-                            <span className="text-xs font-medium">{reto.minimo}</span>
-                            <span className="text-xs px-2 py-0.5 bg-muted rounded-full text-muted-foreground">
-                              {reto.tipo}
+                    const getIcono = (tipo: string) => {
+                      switch(tipo) {
+                        case 'monto_minimo': return '💰'
+                        case 'horario_visita': return '🕐'
+                        case 'frecuencia_visitas': return '🔄'
+                        case 'categoria_producto': return '🏷️'
+                        default: return '🎯'
+                      }
+                    }
+
+                    return (
+                      <div
+                        key={reto.id}
+                        onClick={() => handleToggleReto(reto.id)}
+                        className={`relative p-4 border rounded-[24px] cursor-pointer transition-all ${
+                          selectedRetos.includes(reto.id)
+                            ? 'border-primary bg-primary/5'
+                            : 'border-[#eeeeee] hover:border-primary/50'
+                        }`}
+                      >
+                        <div className="flex gap-3">
+                          {/* Icono circular */}
+                          <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-2xl">
+                            {getIcono(reto.challenge_type)}
+                          </div>
+
+                          {/* Contenido */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-foreground mb-1">
+                              {reto.name}
+                            </h3>
+                            {reto.description && (
+                              <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                                {reto.description}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 bg-primary rounded-full text-primary-foreground">
+                                {getTipoLabel(reto.challenge_type)}
+                              </span>
+                              {reto.is_repeatable && (
+                                <span className="text-xs text-muted-foreground">🔁 Repetible</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Puntos en la esquina */}
+                          <div className="flex-shrink-0">
+                            <span className="text-sm font-semibold text-primary">
+                              {reto.points} pts
                             </span>
                           </div>
                         </div>
 
-                        {/* Puntos en la esquina */}
-                        <div className="flex-shrink-0">
-                          <span className="text-sm font-semibold text-primary">
-                            {reto.puntos} pts
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Indicador de selección */}
-                      {selectedRetos.includes(reto.id) && (
-                        <div className="absolute bottom-4 right-4">
-                          <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                            <Check className="h-3 w-3 text-primary-foreground" />
+                        {/* Indicador de selección */}
+                        {selectedRetos.includes(reto.id) && (
+                          <div className="absolute bottom-4 right-4">
+                            <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                              <Check className="h-3 w-3 text-primary-foreground" />
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                        )}
+                      </div>
+                    )
+                  })}
 
                   {/* Resumen de selección */}
                   {selectedRetos.length > 0 ? (
@@ -505,21 +797,34 @@ export function POSView() {
                     <div className="space-y-2 max-h-[200px] overflow-y-auto">
                       {selectedRetos.map((retoId) => {
                         const reto = retosDisponibles.find((r) => r.id === retoId)
-                        return reto ? (
+                        if (!reto) return null
+
+                        const getIcono = (tipo: string) => {
+                          switch(tipo) {
+                            case 'monto_minimo': return '💰'
+                            case 'horario_visita': return '🕐'
+                            case 'frecuencia_visitas': return '🔄'
+                            case 'categoria_producto': return '🏷️'
+                            default: return '🎯'
+                          }
+                        }
+
+                        return (
                           <div
                             key={reto.id}
-                            className="p-3 rounded-[16px] bg-muted flex items-center justify-between"
+                            className="p-3 rounded-[16px] bg-muted flex items-center gap-2"
                           >
+                            <span className="text-lg">{getIcono(reto.challenge_type)}</span>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-foreground truncate">
-                                {reto.titulo}
+                                {reto.name}
                               </p>
                             </div>
-                            <span className="text-sm font-semibold text-primary ml-2">
-                              +{reto.puntos} pts
+                            <span className="text-sm font-semibold text-primary ml-2 whitespace-nowrap">
+                              +{reto.points} pts
                             </span>
                           </div>
-                        ) : null
+                        )
                       })}
                     </div>
 

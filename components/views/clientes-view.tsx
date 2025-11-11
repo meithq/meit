@@ -4,6 +4,14 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { SecondaryButton } from "@/components/ui/secondary-button"
 import { FormInput } from "@/components/ui/form-input"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import {
   Pagination,
   PaginationContent,
@@ -21,12 +29,17 @@ import {
   BreadcrumbSeparator,
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb"
-import { Search, Filter, Download, Phone, Award, Calendar, Home, Users, Building2 } from "lucide-react"
+import { Search, Filter, Download, Phone, Award, Calendar, Home, Users, Building2, Trophy, Clock } from "lucide-react"
 import { useState, useMemo, useEffect } from "react"
 import { exportToCSV } from "@/lib/export-csv"
 import { useNavigation } from "@/contexts/navigation-context"
 import { getBusinessSettings, type BusinessSettings } from "@/lib/supabase/business-settings"
-import { getCustomersByBusiness, type CustomerBusinessWithDetails } from "@/lib/supabase/customer-businesses"
+import {
+  getCustomersByBusiness,
+  subscribeToCustomerBusinesses,
+  type CustomerBusinessWithDetails
+} from "@/lib/supabase/customer-businesses"
+import { getPointsAuditByCustomer, type PointsAudit } from "@/lib/supabase/points-audit"
 import { toast } from "sonner"
 
 export function ClientesView() {
@@ -40,25 +53,62 @@ export function ClientesView() {
   const [customers, setCustomers] = useState<CustomerBusinessWithDetails[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
+  // Estados para el Sheet de historial
+  const [isHistorySheetOpen, setIsHistorySheetOpen] = useState(false)
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerBusinessWithDetails | null>(null)
+  const [pointsHistory, setPointsHistory] = useState<PointsAudit[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+
   // Cargar configuración del negocio y clientes al montar el componente
   useEffect(() => {
     loadBusinessAndCustomers()
   }, [])
 
-  const loadBusinessAndCustomers = async () => {
+  // Suscripción en tiempo real para actualizar clientes
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined
+
+    const setupSubscription = async () => {
+      if (!businessSettings?.id) return
+
+      console.log('🔌 Setting up ClientesView realtime subscription...')
+
+      unsubscribe = subscribeToCustomerBusinesses(businessSettings.id, (payload) => {
+        console.log('👥 ClientesView received customer_business change:', payload)
+        // Recargar clientes sin mostrar loader
+        loadBusinessAndCustomers(false)
+      })
+    }
+
+    setupSubscription()
+
+    return () => {
+      if (unsubscribe) {
+        console.log('🔌 Cleaning up ClientesView subscription')
+        unsubscribe()
+      }
+    }
+  }, [businessSettings?.id])
+
+  const loadBusinessAndCustomers = async (showLoader = true) => {
     try {
-      setIsLoading(true)
-
-      // Cargar la configuración del negocio
-      const settings = await getBusinessSettings()
-
-      if (!settings) {
-        toast.error('No se encontró configuración del negocio')
-        setIsLoading(false)
-        return
+      if (showLoader) {
+        setIsLoading(true)
       }
 
-      setBusinessSettings(settings)
+      // Cargar la configuración del negocio (solo si aún no está cargada)
+      let settings = businessSettings
+      if (!settings) {
+        settings = await getBusinessSettings()
+        if (!settings) {
+          toast.error('No se encontró configuración del negocio')
+          if (showLoader) {
+            setIsLoading(false)
+          }
+          return
+        }
+        setBusinessSettings(settings)
+      }
 
       // Cargar los clientes del negocio
       const customersList = await getCustomersByBusiness(settings.id!)
@@ -67,7 +117,26 @@ export function ClientesView() {
       console.error('Error loading business and customers:', error)
       toast.error('Error al cargar los datos')
     } finally {
-      setIsLoading(false)
+      if (showLoader) {
+        setIsLoading(false)
+      }
+    }
+  }
+
+  const handleOpenHistory = async (customer: CustomerBusinessWithDetails) => {
+    setSelectedCustomer(customer)
+    setIsHistorySheetOpen(true)
+    setIsLoadingHistory(true)
+
+    try {
+      // Cargar historial de puntos del cliente
+      const history = await getPointsAuditByCustomer(customer.customer_id)
+      setPointsHistory(history)
+    } catch (error) {
+      console.error('Error loading points history:', error)
+      toast.error('Error al cargar el historial de puntos')
+    } finally {
+      setIsLoadingHistory(false)
     }
   }
 
@@ -204,14 +273,53 @@ export function ClientesView() {
       {/* Cards Grid */}
       <div className="px-4 lg:px-6">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-16 px-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-            <p className="text-sm text-muted-foreground">Cargando clientes...</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Card
+                key={index}
+                className="p-4 shadow-none"
+                style={{ borderRadius: '30px', border: '1px solid #eeeeee' }}
+              >
+                {/* Header with name and points skeleton */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex-1">
+                    <Skeleton className="h-5 w-32" />
+                  </div>
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                </div>
+
+                {/* Contact info and stats skeleton */}
+                <div className="flex flex-col gap-2">
+                  {/* Phone */}
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="w-4 h-4 rounded" />
+                    <Skeleton className="h-4 w-28" />
+                  </div>
+
+                  {/* Visits */}
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="w-4 h-4 rounded" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+
+                  {/* Last visit */}
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="w-4 h-4 rounded" />
+                    <Skeleton className="h-4 w-36" />
+                  </div>
+                </div>
+              </Card>
+            ))}
           </div>
         ) : currentClientes.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {currentClientes.map((customer) => (
-              <Card key={customer.id} className="p-4 shadow-none" style={{ borderRadius: '30px', border: '1px solid #eeeeee' }}>
+              <Card
+                key={customer.id}
+                className="p-4 shadow-none cursor-pointer transition-all hover:border-primary/20 hover:shadow-sm"
+                style={{ borderRadius: '30px', border: '1px solid #eeeeee' }}
+                onClick={() => handleOpenHistory(customer)}
+              >
                 {/* Header con nombre y puntos */}
                 <div className="flex items-center justify-between mb-3">
                   <div>
@@ -318,6 +426,163 @@ export function ClientesView() {
           </div>
         </div>
       )}
+
+      {/* Sheet de Historial de Puntos */}
+      <Sheet open={isHistorySheetOpen} onOpenChange={setIsHistorySheetOpen}>
+        <SheetContent
+          side="right"
+          className="m-4 h-[calc(100vh-2rem)] p-0 [&>button]:bg-white [&>button]:rounded-full [&>button]:w-10 [&>button]:h-10 [&>button]:flex [&>button]:items-center [&>button]:justify-center [&>button]:border [&>button]:shadow-sm [&>button]:cursor-pointer flex flex-col"
+          style={{ borderRadius: '30px', borderColor: '#eeeeee' }}
+        >
+          <SheetHeader className="px-6 pt-6 pb-4 flex-shrink-0 border-b border-border">
+            <SheetTitle className="text-2xl">Historial de Puntos</SheetTitle>
+            <SheetDescription>
+              {selectedCustomer?.customer_name || 'Cliente'}
+            </SheetDescription>
+
+            {/* Resumen de puntos */}
+            {selectedCustomer && (
+              <div className="mt-4 p-4 bg-primary/5 rounded-2xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Trophy className="w-6 h-6 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">
+                        {selectedCustomer.total_points || 0}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Puntos disponibles</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      {selectedCustomer.lifetime_points || 0} totales
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedCustomer.visits_count || 0} visitas
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </SheetHeader>
+
+          {/* Contenido scrollable */}
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            {isLoadingHistory ? (
+              <div className="flex flex-col gap-4">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <div key={index} className="p-4 rounded-2xl border border-border">
+                    <div className="flex items-start gap-3">
+                      <Skeleton className="w-10 h-10 rounded-full flex-shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-3 w-1/2" />
+                        <Skeleton className="h-3 w-full" />
+                      </div>
+                      <Skeleton className="w-16 h-6" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : pointsHistory.length > 0 ? (
+              <div className="relative">
+                {/* Línea vertical del timeline */}
+                <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border"></div>
+
+                {/* Entradas del timeline */}
+                <div className="space-y-4">
+                  {pointsHistory.map((entry, index) => {
+                    const isPositive = entry.points_assigned > 0
+                    const isNegative = entry.points_assigned < 0
+
+                    return (
+                      <div key={entry.id} className="relative pl-11">
+                        {/* Icono en el timeline */}
+                        <div
+                          className={`absolute left-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                            isPositive
+                              ? 'bg-green-100'
+                              : isNegative
+                              ? 'bg-red-100'
+                              : 'bg-gray-100'
+                          }`}
+                        >
+                          {isPositive ? (
+                            <span className="text-green-600 font-bold text-lg">+</span>
+                          ) : isNegative ? (
+                            <span className="text-red-600 font-bold text-lg">−</span>
+                          ) : (
+                            <Trophy className="w-4 h-4 text-gray-600" />
+                          )}
+                        </div>
+
+                        {/* Contenido */}
+                        <div className="bg-white rounded-2xl p-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <p className={`font-semibold text-base ${
+                                isPositive
+                                  ? 'text-green-600'
+                                  : isNegative
+                                  ? 'text-red-600'
+                                  : 'text-foreground'
+                              }`}>
+                                {entry.points_assigned > 0 ? '+' : ''}{entry.points_assigned} puntos
+                              </p>
+                              {entry.challenge_id && (
+                                <p className="text-sm text-muted-foreground mt-0.5">
+                                  Reto completado
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Clock className="w-3.5 h-3.5" />
+                              <span>
+                                {new Date(entry.created_at).toLocaleTimeString('es-ES', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(entry.created_at).toLocaleDateString('es-ES', {
+                              day: '2-digit',
+                              month: 'long',
+                              year: 'numeric'
+                            })}
+                          </p>
+
+                          {entry.notes && (
+                            <p className="text-sm text-muted-foreground mt-3 pt-3 border-t border-border">
+                              {entry.notes}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 px-4">
+                <div className="w-20 h-20 rounded-full bg-primary/5 flex items-center justify-center mb-6">
+                  <Trophy className="w-10 h-10 text-primary/40" />
+                </div>
+                <h3 className="text-lg font-semibold text-foreground mb-2">
+                  Sin historial
+                </h3>
+                <p className="text-sm text-muted-foreground text-center max-w-xs">
+                  Este cliente aún no tiene puntos asignados
+                </p>
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

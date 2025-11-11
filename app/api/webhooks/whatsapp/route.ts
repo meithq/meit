@@ -18,6 +18,7 @@ import { getOrCreateCustomerBusiness, getBusinessesByCustomer } from '@/lib/supa
 import { createServerClient } from '@/lib/supabase/server-client'
 import { getActiveChallengesByBusiness, getActiveChallengesForBusinesses } from '@/lib/supabase/challenges'
 import type { ActiveChallenge } from '@/lib/supabase/challenges-types'
+import { createNotification } from '@/lib/supabase/notifications'
 
 /**
  * Webhook para recibir mensajes de Evolution API
@@ -592,7 +593,50 @@ Por favor verifica el nombre del negocio y vuelve a intentar, o contacta con el 
       visits_count: relationship.visits_count,
     })
 
-    // 4. Enviar mensaje de confirmación con puntos del negocio específico
+    // 4. Crear notificaciones
+    try {
+      // Notificación de check-in
+      await createNotification({
+        business_settings_id: businessSettings.id,
+        type: 'checkin',
+        title: 'Nuevo check-in',
+        message: `${context.customerName} ha hecho check-in en ${branchName}`,
+        metadata: {
+          customer_id: context.customer.id,
+          customer_name: context.customerName,
+          customer_phone: context.phone,
+          branch_id: branch?.id,
+          branch_name: branchName,
+          points: POINTS_PER_CHECKIN
+        },
+        priority: 'normal'
+      }, supabase)
+
+      // Si es nuevo cliente, crear notificación adicional
+      if (isNewRelationship) {
+        await createNotification({
+          business_settings_id: businessSettings.id,
+          type: 'new_customer',
+          title: '¡Nuevo cliente!',
+          message: `${context.customerName} se ha registrado por primera vez`,
+          metadata: {
+            customer_id: context.customer.id,
+            customer_name: context.customerName,
+            customer_phone: context.phone,
+            branch_id: branch?.id,
+            branch_name: branchName
+          },
+          priority: 'high'
+        }, supabase)
+      }
+
+      console.log('✅ Notifications created successfully')
+    } catch (notifError) {
+      console.error('⚠️ Error creating notifications:', notifError)
+      // No bloquear el check-in si falla la notificación
+    }
+
+    // 5. Enviar mensaje de confirmación con puntos del negocio específico
     const message = `✅ *Check-in exitoso*
 
 ¡Bienvenido a *${businessName}*!

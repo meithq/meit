@@ -31,6 +31,12 @@ import { Home, Settings, Gift, TrendingUp, DollarSign, Percent, CheckCircle, Cal
 import { useState, useRef, useEffect } from "react"
 import { useNavigation } from "@/contexts/navigation-context"
 import { getGiftCardSettings, upsertGiftCardSettings } from "@/lib/supabase/gift-card-settings"
+import { getGiftCardByCode, getGiftCardsByBusiness, redeemGiftCardComplete } from "@/lib/supabase/gift-cards"
+import { getCustomerById } from "@/lib/supabase/customers"
+import { getBusinessSettings } from "@/lib/supabase/business-settings"
+import { validateAdminPin } from "@/lib/supabase/points-audit"
+import { getCurrentUser } from "@/lib/supabase/auth"
+import type { GiftCard as GiftCardDB, GiftCardWithCustomer } from "@/lib/types/gift-cards"
 import { toast } from "sonner"
 
 interface GiftCard {
@@ -42,13 +48,9 @@ interface GiftCard {
   fechaEmision: string
   vencimiento: string
   estado: "activa" | "redimida" | "vencida"
+  customer_id: string
+  business_settings_id: number
 }
-
-// Datos de ejemplo - reemplazar con datos reales de la base de datos
-const giftCardEjemplo: GiftCard | null = null
-
-// Array vacío - cargar datos desde la base de datos
-const giftCardsData: GiftCard[] = []
 
 export function GiftCardsView() {
   const { setView } = useNavigation()
@@ -60,6 +62,12 @@ export function GiftCardsView() {
   const [activeTab, setActiveTab] = useState("activas")
   const [activeMode, setActiveMode] = useState<"redimir" | "gestion">("redimir")
   const [pin, setPin] = useState(["", "", "", ""])
+  const [isValidating, setIsValidating] = useState(false)
+  const [giftCardNotFound, setGiftCardNotFound] = useState(false)
+  const [giftCardsData, setGiftCardsData] = useState<GiftCard[]>([])
+  const [isLoadingGiftCards, setIsLoadingGiftCards] = useState(false)
+  const [isRedeeming, setIsRedeeming] = useState(false)
+  const [pinError, setPinError] = useState<string | null>(null)
   const pinInputsRef = useRef<(HTMLInputElement | null)[]>([])
 
   useEffect(() => {
@@ -68,6 +76,63 @@ export function GiftCardsView() {
       pinInputsRef.current[0].focus()
     }
   }, [showPinModal])
+
+  // Cargar gift cards cuando se cambia a modo gestión
+  useEffect(() => {
+    if (activeMode === "gestion") {
+      loadGiftCards()
+    }
+  }, [activeMode])
+
+  const loadGiftCards = async () => {
+    setIsLoadingGiftCards(true)
+    try {
+      // Obtener business settings para obtener el business_settings_id
+      const businessSettings = await getBusinessSettings()
+
+      if (!businessSettings?.id) {
+        console.error("No business settings found")
+        return
+      }
+
+      // Obtener todas las gift cards del negocio
+      const giftCardsDB = await getGiftCardsByBusiness(businessSettings.id)
+
+      // Mapear a la interfaz local
+      const giftCardsMapped: GiftCard[] = giftCardsDB.map((gc: GiftCardWithCustomer) => {
+        // Determinar el estado considerando la fecha de vencimiento
+        let estado: "activa" | "redimida" | "vencida" = "activa"
+
+        if (gc.status === 'redeemed') {
+          estado = 'redimida'
+        } else if (gc.status === 'expired' || new Date(gc.expires_at) < new Date()) {
+          estado = 'vencida'
+        } else if (gc.status === 'active') {
+          estado = 'activa'
+        }
+
+        return {
+          id: gc.id,
+          codigo: gc.code,
+          cliente: gc.customer_name || 'N/A',
+          telefono: gc.customer_phone || 'N/A',
+          valor: gc.value,
+          fechaEmision: gc.created_at,
+          vencimiento: gc.expires_at,
+          estado: estado,
+          customer_id: gc.customer_id,
+          business_settings_id: gc.business_settings_id
+        }
+      })
+
+      setGiftCardsData(giftCardsMapped)
+    } catch (error) {
+      console.error("Error loading gift cards:", error)
+      toast.error("Error al cargar las gift cards")
+    } finally {
+      setIsLoadingGiftCards(false)
+    }
+  }
 
   const handlePinChange = (index: number, value: string) => {
     if (value.length <= 1 && /^\d*$/.test(value)) {
@@ -91,26 +156,107 @@ export function GiftCardsView() {
   const handleCancelarPin = () => {
     setShowPinModal(false)
     setPin(["", "", "", ""])
+    setPinError(null)
   }
 
-  const handleConfirmarRedencion = () => {
+  const handleConfirmarRedencion = async () => {
     const pinCompleto = pin.join("")
 
     if (pinCompleto.length !== 4) {
-      console.log("PIN incompleto")
+      setPinError("PIN incompleto")
       return
     }
 
-    // Aquí validarías el PIN con el backend
-    console.log("Validando PIN:", pinCompleto)
-    console.log("Redimiendo gift card:", giftCardValidada?.codigo)
+    if (!giftCardValidada) {
+      toast.error("No hay gift card seleccionada")
+      return
+    }
 
-    // Cerrar ambos modales y limpiar estados
-    setShowPinModal(false)
-    setShowModal(false)
-    setGiftCardValidada(null)
-    setCodigoGiftCard("")
-    setPin(["", "", "", ""])
+    setIsRedeeming(true)
+    setPinError(null)
+
+    try {
+      // 1. Validar el PIN del admin
+      const admin = await validateAdminPin(pinCompleto)
+
+      if (!admin) {
+        setPinError("PIN incorrecto")
+        setIsRedeeming(false)
+        return
+      }
+
+      // 2. Obtener el usuario actual (operador)
+      const currentUser = await getCurrentUser()
+
+      if (!currentUser) {
+        toast.error("No se pudo obtener el usuario actual")
+        setIsRedeeming(false)
+        return
+      }
+
+      // 3. Obtener business settings
+      const businessSettings = await getBusinessSettings()
+
+      if (!businessSettings?.id) {
+        toast.error("No se pudo obtener la configuración del negocio")
+        setIsRedeeming(false)
+        return
+      }
+
+      // 4. Redimir la gift card
+      console.log("🎁 Redimiendo gift card:", giftCardValidada.codigo)
+      await redeemGiftCardComplete(
+        giftCardValidada.id,
+        currentUser.id,
+        admin.id,
+        `Gift card redimida: ${giftCardValidada.codigo} ($${giftCardValidada.valor} USD)`
+      )
+
+      // 5. Crear notificación para el cliente (opcional, no detener el proceso si falla)
+      try {
+        const { createNotification } = await import('@/lib/supabase/notifications')
+        await createNotification({
+          business_settings_id: giftCardValidada.business_settings_id,
+          customer_id: giftCardValidada.customer_id,
+          type: 'gift_card_redeemed',
+          title: '✨ Gift Card Redimida',
+          message: `Tu gift card de $${giftCardValidada.valor} USD ha sido redimida exitosamente.`,
+          metadata: {
+            gift_card_code: giftCardValidada.codigo,
+            gift_card_value: giftCardValidada.valor,
+          },
+        })
+      } catch (notifError) {
+        console.error('⚠️ Error creating notification (non-critical):', notifError)
+      }
+
+      // 6. Mostrar éxito
+      toast.success("Gift card redimida exitosamente", {
+        description: `$${giftCardValidada.valor} USD - ${giftCardValidada.codigo}`,
+        duration: 5000,
+      })
+
+      // 7. Recargar la lista de gift cards si está en modo gestión
+      if (activeMode === "gestion") {
+        await loadGiftCards()
+      }
+
+      // 8. Cerrar ambos modales y limpiar estados
+      setShowPinModal(false)
+      setShowModal(false)
+      setGiftCardValidada(null)
+      setCodigoGiftCard("")
+      setPin(["", "", "", ""])
+      setPinError(null)
+
+    } catch (error) {
+      console.error("❌ Error redimiendo gift card:", error)
+      const errorMessage = error instanceof Error ? error.message : "Error desconocido"
+      toast.error(`Error al redimir gift card: ${errorMessage}`)
+      setPinError("Error al procesar la redención")
+    } finally {
+      setIsRedeeming(false)
+    }
   }
 
   // Estados de configuración
@@ -151,6 +297,16 @@ export function GiftCardsView() {
   const countRedimidas = giftCardsData.filter(gc => gc.estado === "redimida").length
   const countVencidas = giftCardsData.filter(gc => gc.estado === "vencida").length
 
+  // Calcular redimidas este mes
+  const now = new Date()
+  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  const countRedimidasEsteMes = giftCardsData.filter(gc => {
+    if (gc.estado !== "redimida") return false
+    // Si hay fecha de redención, usarla; sino usar fecha de creación
+    const fechaCreacion = new Date(gc.fechaEmision)
+    return fechaCreacion >= firstDayOfMonth
+  }).length
+
   // Filtrar gift cards por estado
   const filteredGiftCards = giftCardsData.filter((gc) => {
     if (activeTab === "activas") return gc.estado === "activa"
@@ -159,12 +315,58 @@ export function GiftCardsView() {
     return true
   })
 
-  const handleValidarGiftCard = () => {
-    if (codigoGiftCard.trim()) {
-      // Aquí iría la lógica de validación con el backend
-      // Por ahora usamos datos de ejemplo
-      setGiftCardValidada(giftCardEjemplo)
+  const handleValidarGiftCard = async () => {
+    if (!codigoGiftCard.trim()) {
+      toast.error("Ingresa un código de gift card")
+      return
+    }
+
+    setIsValidating(true)
+    setGiftCardNotFound(false)
+
+    try {
+      // Buscar la gift card por código
+      const giftCardDB = await getGiftCardByCode(codigoGiftCard.trim())
+
+      if (!giftCardDB) {
+        // Gift card no encontrada
+        setGiftCardNotFound(true)
+        setGiftCardValidada(null)
+        setShowModal(true)
+        return
+      }
+
+      // Obtener información del cliente
+      const customer = await getCustomerById(giftCardDB.customer_id)
+
+      if (!customer) {
+        toast.error("No se pudo obtener la información del cliente")
+        return
+      }
+
+      // Mapear la gift card de DB a la interfaz local
+      const giftCardMapped: GiftCard = {
+        id: giftCardDB.id,
+        codigo: giftCardDB.code,
+        cliente: customer.name,
+        telefono: customer.phone,
+        valor: giftCardDB.value,
+        fechaEmision: giftCardDB.created_at,
+        vencimiento: giftCardDB.expires_at,
+        estado: giftCardDB.status === 'active' ? 'activa' :
+                giftCardDB.status === 'redeemed' ? 'redimida' : 'vencida',
+        customer_id: giftCardDB.customer_id,
+        business_settings_id: giftCardDB.business_settings_id
+      }
+
+      setGiftCardValidada(giftCardMapped)
       setShowModal(true)
+
+    } catch (error) {
+      console.error("Error validating gift card:", error)
+      toast.error("Error al validar la gift card")
+    } finally {
+      setIsValidating(false)
     }
   }
 
@@ -177,6 +379,7 @@ export function GiftCardsView() {
   const handleCancelar = () => {
     setShowModal(false)
     setGiftCardValidada(null)
+    setGiftCardNotFound(false)
     setCodigoGiftCard("")
   }
 
@@ -220,32 +423,24 @@ export function GiftCardsView() {
       valor: countActivas.toString(),
       icon: Gift,
       descripcion: "Gift cards activas",
-      tendencia: "+12%",
-      positiva: true,
     },
     {
       titulo: "Redimidas este mes",
-      valor: countRedimidas.toString(),
+      valor: countRedimidasEsteMes.toString(),
       icon: TrendingUp,
       descripcion: "Canjes en el mes",
-      tendencia: "+8%",
-      positiva: true,
     },
     {
       titulo: "Valor en circulación",
       valor: `$${giftCardsData.filter(gc => gc.estado === "activa").reduce((acc, gc) => acc + gc.valor, 0).toLocaleString()}`,
       icon: DollarSign,
       descripcion: "Total disponible",
-      tendencia: "+15%",
-      positiva: true,
     },
     {
       titulo: "Tasa de Redención",
       valor: `${giftCardsData.length > 0 ? Math.round((countRedimidas / giftCardsData.length) * 100) : 0}%`,
       icon: Percent,
-      descripcion: "Últimos 30 días",
-      tendencia: "+5%",
-      positiva: true,
+      descripcion: "Total histórico",
     },
   ]
 
@@ -347,9 +542,9 @@ export function GiftCardsView() {
                   onKeyPress={handleKeyPress}
                   className="flex-1"
                 />
-                <PrimaryButton onClick={handleValidarGiftCard}>
+                <PrimaryButton onClick={handleValidarGiftCard} disabled={isValidating}>
                   <CheckCircle className="mr-2 h-5 w-5" />
-                  Validar
+                  {isValidating ? "Validando..." : "Validar"}
                 </PrimaryButton>
               </div>
             </Card>
@@ -386,18 +581,6 @@ export function GiftCardsView() {
                       <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                         <Icon className="w-6 h-6 text-primary" />
                       </div>
-                    </div>
-                    <div className="mt-4 flex items-center gap-2">
-                      <span
-                        className={`text-xs font-medium ${
-                          metrica.positiva ? "text-green-600" : "text-red-600"
-                        }`}
-                      >
-                        {metrica.tendencia}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        vs mes anterior
-                      </span>
                     </div>
                   </Card>
                 )
@@ -448,7 +631,21 @@ export function GiftCardsView() {
           </div>
 
           <TabsContent value={activeTab}>
-            {filteredGiftCards.length > 0 ? (
+            {isLoadingGiftCards ? (
+              <Card
+                className="p-12 shadow-none"
+                style={{ borderRadius: "30px", border: "1px solid #eeeeee" }}
+              >
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-3 animate-pulse">
+                    <Gift className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Cargando gift cards...
+                  </p>
+                </div>
+              </Card>
+            ) : filteredGiftCards.length > 0 ? (
               <div className="grid grid-cols-1 gap-4">
                 {filteredGiftCards.map((giftcard) => (
                   <Card
@@ -641,8 +838,32 @@ export function GiftCardsView() {
       {/* Modal de Gift Card Validada */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="max-w-lg">
-          <DialogTitle className="sr-only">Gift Card Validada</DialogTitle>
-          {giftCardValidada && (
+          <DialogTitle className="sr-only">
+            {giftCardNotFound ? "Gift Card No Encontrada" : "Gift Card Validada"}
+          </DialogTitle>
+
+          {/* Estado: Gift Card no encontrada */}
+          {giftCardNotFound && (
+            <div className="py-8">
+              <div className="flex flex-col items-center text-center">
+                <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center mb-4">
+                  <X className="w-10 h-10 text-red-600" />
+                </div>
+                <h2 className="text-2xl font-bold mb-2 text-foreground">
+                  Código incorrecto
+                </h2>
+                <p className="text-sm text-muted-foreground mb-6 max-w-sm">
+                  El código <span className="font-mono font-semibold">{codigoGiftCard}</span> no existe o no es válido. Verifica el código e intenta nuevamente.
+                </p>
+                <PrimaryButton onClick={handleCancelar} className="w-full max-w-xs">
+                  Entendido
+                </PrimaryButton>
+              </div>
+            </div>
+          )}
+
+          {/* Estado: Gift Card encontrada */}
+          {giftCardValidada && !giftCardNotFound && (
             <div>
               {/* Tarjeta Gift Card Visual */}
               <div
@@ -745,7 +966,7 @@ export function GiftCardsView() {
             </p>
 
             {/* Inputs de PIN */}
-            <div className="flex gap-3 mb-8">
+            <div className="flex gap-3 mb-2">
               {[0, 1, 2, 3].map((index) => (
                 <input
                   key={index}
@@ -756,23 +977,31 @@ export function GiftCardsView() {
                   value={pin[index]}
                   onChange={(e) => handlePinChange(index, e.target.value)}
                   onKeyDown={(e) => handlePinKeyDown(index, e)}
-                  className="w-16 h-16 text-center text-2xl font-bold border-2 rounded-2xl focus:border-primary focus:outline-none transition-colors"
-                  style={{ borderColor: pin[index] ? "#84dcdb" : "#e5e7eb" }}
+                  disabled={isRedeeming}
+                  className="w-16 h-16 text-center text-2xl font-bold border-2 rounded-2xl focus:border-primary focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ borderColor: pinError ? "#ef4444" : pin[index] ? "#84dcdb" : "#e5e7eb" }}
                 />
               ))}
             </div>
 
+            {/* Error message */}
+            {pinError && (
+              <p className="text-sm text-red-600 mb-6">{pinError}</p>
+            )}
+
+            {!pinError && <div className="mb-6"></div>}
+
             {/* Botones */}
             <div className="flex gap-3 w-full">
-              <SecondaryButton className="flex-1" onClick={handleCancelarPin}>
+              <SecondaryButton className="flex-1" onClick={handleCancelarPin} disabled={isRedeeming}>
                 Cancelar
               </SecondaryButton>
               <PrimaryButton
                 className="flex-1"
                 onClick={handleConfirmarRedencion}
-                disabled={pin.some((digit) => !digit)}
+                disabled={pin.some((digit) => !digit) || isRedeeming}
               >
-                Confirmar
+                {isRedeeming ? "Procesando..." : "Confirmar"}
               </PrimaryButton>
             </div>
           </div>
