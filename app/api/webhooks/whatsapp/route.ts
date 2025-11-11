@@ -16,6 +16,8 @@ import {
 import { parseCheckInMessage } from '@/lib/whatsapp-qr'
 import { getOrCreateCustomerBusiness, getBusinessesByCustomer } from '@/lib/supabase/customer-businesses'
 import { createServerClient } from '@/lib/supabase/server-client'
+import { getActiveChallengesByBusiness, getActiveChallengesForBusinesses } from '@/lib/supabase/challenges'
+import type { ActiveChallenge } from '@/lib/supabase/challenges-types'
 
 /**
  * Webhook para recibir mensajes de Evolution API
@@ -143,6 +145,11 @@ async function routeMessage(context: MessageContext): Promise<void> {
   // Comandos del cliente
   if (lowerMessage === 'puntos' || lowerMessage === 'points') {
     await handlePointsQuery(context)
+    return
+  }
+
+  if (lowerMessage === 'retos' || lowerMessage === 'challenges') {
+    await handleChallengesQuery(context)
     return
   }
 
@@ -294,6 +301,207 @@ Si cambias de opinión, simplemente envíanos un mensaje y te reactivaremos. ¡G
 }
 
 /**
+ * Handler para consulta de retos disponibles
+ */
+async function handleChallengesQuery(context: MessageContext): Promise<void> {
+  try {
+    // Usar server client para bypasear RLS
+    const supabase = createServerClient()
+
+    // Obtener todos los negocios donde está registrado el cliente
+    const businessRelationships = await getBusinessesByCustomer(context.customer.id, supabase)
+
+    if (!businessRelationships || businessRelationships.length === 0) {
+      const message = `🎯 *Retos Disponibles*
+
+Hola ${context.customerName},
+
+Aún no has hecho check-in en ningún negocio.
+
+Para ver los retos disponibles, primero debes visitar un negocio y escanear el código QR para hacer check-in. 📱
+
+Una vez registrado, podrás ver todos los retos disponibles y ganar puntos extra. 🎁`
+
+      const client = getEvolutionClient()
+      await client.sendTextMessage({
+        phone: context.phone,
+        message,
+      })
+      return
+    }
+
+    // Obtener IDs de todas las sucursales donde el cliente está registrado
+    const branchIds = businessRelationships
+      .map(rel => rel.business_id)
+      .filter((id): id is number => id !== null && id !== undefined)
+
+    if (branchIds.length === 0) {
+      const message = `🎯 *Retos Disponibles*
+
+No pudimos encontrar información de tus sucursales registradas.
+
+Por favor intenta hacer check-in nuevamente. 📱`
+
+      const client = getEvolutionClient()
+      await client.sendTextMessage({
+        phone: context.phone,
+        message,
+      })
+      return
+    }
+
+    // Obtener todos los retos activos para estos negocios
+    const challengesMap = await getActiveChallengesForBusinesses(branchIds, supabase)
+
+    // Si no hay retos en ningún negocio
+    if (challengesMap.size === 0) {
+      const message = `🎯 *Retos Disponibles*
+
+Hola ${context.customerName},
+
+Actualmente no hay retos activos en los negocios donde estás registrado.
+
+¡Estate atento! Los negocios publican nuevos retos regularmente. 🎁
+
+Envía *PUNTOS* para ver tu balance actual.`
+
+      const client = getEvolutionClient()
+      await client.sendTextMessage({
+        phone: context.phone,
+        message,
+      })
+      return
+    }
+
+    // Construir mensaje con retos agrupados por negocio
+    let message = `🎯 *Retos Disponibles*\n\nHola ${context.customerName}, estos son los retos activos en tus negocios:\n\n`
+
+    let hasAnyChallenges = false
+
+    businessRelationships.forEach((rel, index) => {
+      if (!rel.business_id) return
+
+      const challenges = challengesMap.get(rel.business_id)
+
+      if (challenges && challenges.length > 0) {
+        hasAnyChallenges = true
+
+        message += `━━━━━━━━━━━━━━━━\n`
+        message += `🏢 *${rel.business_name || 'Negocio'}*\n`
+        message += `📍 ${rel.business_address || 'N/A'}\n\n`
+
+        challenges.forEach((challenge, cIndex) => {
+          message += `${cIndex + 1}. *${challenge.name}*\n`
+
+          if (challenge.description) {
+            message += `   📝 ${challenge.description}\n`
+          }
+
+          message += `   ⭐ Puntos: ${challenge.points}\n`
+
+          if (challenge.target_value) {
+            message += `   🎯 Objetivo: ${challenge.target_value}\n`
+          }
+
+          if (cIndex < challenges.length - 1) {
+            message += '\n'
+          }
+        })
+
+        message += '\n'
+      }
+    })
+
+    if (!hasAnyChallenges) {
+      message = `🎯 *Retos Disponibles*
+
+Hola ${context.customerName},
+
+Actualmente no hay retos activos en los negocios donde estás registrado.
+
+¡Estate atento! Los negocios publican nuevos retos regularmente. 🎁`
+    } else {
+      message += `━━━━━━━━━━━━━━━━\n`
+      message += `💡 Completa estos retos para ganar más puntos.\n\n`
+      message += `Envía *PUNTOS* para ver tu balance actual.`
+    }
+
+    const client = getEvolutionClient()
+    await client.sendTextMessage({
+      phone: context.phone,
+      message,
+    })
+
+    console.log(`✅ Challenges query responded for ${context.phone}`)
+  } catch (error) {
+    console.error('Error handling challenges query:', error)
+
+    // Enviar mensaje de error
+    try {
+      const client = getEvolutionClient()
+      await client.sendTextMessage({
+        phone: context.phone,
+        message: '❌ Hubo un error al obtener los retos. Por favor intenta nuevamente más tarde.',
+      })
+    } catch (msgError) {
+      console.error('Error sending error message:', msgError)
+    }
+  }
+}
+
+/**
+ * Formatea un array de retos en un mensaje legible de WhatsApp
+ */
+function formatChallengesMessage(businessName: string, challenges: ActiveChallenge[]): string {
+  if (challenges.length === 0) {
+    return ''
+  }
+
+  const emojiNumbers = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟']
+
+  let message = `🎯 *Retos Disponibles en ${businessName}*\n\n`
+
+  challenges.forEach((challenge, index) => {
+    const emoji = index < 10 ? emojiNumbers[index] : `${index + 1}.`
+
+    message += `${emoji} *${challenge.name}*\n`
+
+    if (challenge.description) {
+      message += `   📝 ${challenge.description}\n`
+    }
+
+    message += `   ⭐ Puntos: ${challenge.points}\n`
+
+    // Formatear el tipo de reto de forma legible
+    const challengeTypeMap: { [key: string]: string } = {
+      'visits': 'Visitas',
+      'purchases': 'Compras',
+      'referrals': 'Referidos',
+      'points': 'Acumulación de puntos',
+      'social': 'Social media',
+      'custom': 'Personalizado',
+    }
+
+    const challengeTypeLabel = challengeTypeMap[challenge.challenge_type] || challenge.challenge_type
+    message += `   🎲 Tipo: ${challengeTypeLabel}\n`
+
+    if (challenge.target_value) {
+      message += `   🎯 Objetivo: ${challenge.target_value}\n`
+    }
+
+    // Agregar separador entre retos excepto el último
+    if (index < challenges.length - 1) {
+      message += '\n'
+    }
+  })
+
+  message += `\n━━━━━━━━━━━━━━━━\n`
+  message += `💡 Completa estos retos para ganar más puntos.`
+
+  return message
+}
+
+/**
  * Handler para check-in en sucursal
  */
 async function handleCheckIn(
@@ -405,6 +613,29 @@ Envía *PUNTOS* para ver tu balance completo.`
     })
 
     console.log(`✅ Check-in processed for ${context.phone} at ${businessName} - ${branchName}`)
+
+    // 5. Enviar mensaje automático con retos disponibles (si existen)
+    if (branch?.id) {
+      try {
+        const challenges = await getActiveChallengesByBusiness(branch.id, supabase)
+
+        if (challenges.length > 0) {
+          const challengesMessage = formatChallengesMessage(businessName, challenges)
+
+          await client.sendTextMessage({
+            phone: context.phone,
+            message: challengesMessage,
+          })
+
+          console.log(`✅ Challenges message sent to ${context.phone} (${challenges.length} challenges)`)
+        } else {
+          console.log(`ℹ️ No active challenges found for branch ${branch.id}`)
+        }
+      } catch (challengeError) {
+        // No interrumpir el flujo si hay error al enviar retos
+        console.error('Error sending challenges message:', challengeError)
+      }
+    }
   } catch (error) {
     console.error('Error handling check-in:', error)
 
