@@ -6,7 +6,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md text-center">
-        <h1 className="text-5xl sm:text-6xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">
+        <h1 className="text-5xl sm:text-6xl font-bold text-neutral-900 dark:text-neutral-100 mb-4">
           Bienvenido a <span className="text-primary-600">Meit</span>
         </h1>
         <p className="text-lg text-neutral-600 dark:text-neutral-400 mb-10">
