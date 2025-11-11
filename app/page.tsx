@@ -9,7 +9,7 @@ export default function Home() {
         <h1 className="text-5xl sm:text-6xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">
           Bienvenido a <span className="text-primary-600">Meit</span>
         </h1>
-        <p className="text-lg text-neutral-600 dark:text-neutral-400 mb-8">
+        <p className="text-lg text-neutral-600 dark:text-neutral-400 mb-10">
           Sistema de fidelización y gestión de clientes para tu negocio
         </p>
         <Button
