@@ -1,4 +1,6 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
+import type { ActiveChallenge } from './challenges-types'
 import type {
   Challenge,
   CreateChallengeInput,
@@ -7,7 +9,84 @@ import type {
 } from '@/lib/types/challenges'
 
 /**
- * Obtener todos los retos de un negocio
+ * Gets all active challenges for a specific business/branch (for WhatsApp webhook)
+ * @param businessId - The business ID (from businesses table)
+ * @param supabase - Supabase client instance
+ * @returns Array of active challenges
+ */
+export async function getActiveChallengesByBusiness(
+  businessId: number,
+  supabase: SupabaseClient
+): Promise<ActiveChallenge[]> {
+  const now = new Date().toISOString()
+
+  const { data, error } = await supabase
+    .from('challenges')
+    .select('id, name, description, points, challenge_type, target_value')
+    .eq('business_id', businessId)
+    .eq('is_active', true)
+    .or(`start_date.is.null,start_date.lte.${now}`)
+    .or(`end_date.is.null,end_date.gte.${now}`)
+    .order('points', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching challenges:', error)
+    return []
+  }
+
+  return data || []
+}
+
+/**
+ * Gets all active challenges for multiple businesses (for WhatsApp webhook)
+ * @param businessIds - Array of business IDs
+ * @param supabase - Supabase client instance
+ * @returns Map of business ID to challenges array
+ */
+export async function getActiveChallengesForBusinesses(
+  businessIds: number[],
+  supabase: SupabaseClient
+): Promise<Map<number, ActiveChallenge[]>> {
+  if (businessIds.length === 0) {
+    return new Map()
+  }
+
+  const now = new Date().toISOString()
+
+  const { data, error } = await supabase
+    .from('challenges')
+    .select('id, name, description, points, challenge_type, target_value, business_id')
+    .in('business_id', businessIds)
+    .eq('is_active', true)
+    .or(`start_date.is.null,start_date.lte.${now}`)
+    .or(`end_date.is.null,end_date.gte.${now}`)
+    .order('business_id', { ascending: true })
+    .order('points', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching challenges for businesses:', error)
+    return new Map()
+  }
+
+  // Group challenges by business_id
+  const challengesMap = new Map<number, ActiveChallenge[]>()
+
+  for (const challenge of data || []) {
+    const businessId = (challenge as any).business_id
+    const activeChallenges = challengesMap.get(businessId) || []
+
+    // Remove business_id from the challenge object before adding
+    const { business_id, ...challengeWithoutBusinessId } = challenge as any
+    activeChallenges.push(challengeWithoutBusinessId as ActiveChallenge)
+
+    challengesMap.set(businessId, activeChallenges)
+  }
+
+  return challengesMap
+}
+
+/**
+ * Obtener todos los retos de un negocio (for admin panel)
  */
 export async function getChallenges(businessId: number): Promise<Challenge[]> {
   try {
@@ -32,7 +111,7 @@ export async function getChallenges(businessId: number): Promise<Challenge[]> {
 }
 
 /**
- * Obtener un reto por ID
+ * Obtener un reto por ID (for admin panel)
  */
 export async function getChallengeById(id: string): Promise<Challenge | null> {
   try {
@@ -57,7 +136,7 @@ export async function getChallengeById(id: string): Promise<Challenge | null> {
 }
 
 /**
- * Obtener retos activos de un negocio
+ * Obtener retos activos de un negocio (for admin panel)
  */
 export async function getActiveChallenges(businessId: number): Promise<Challenge[]> {
   try {
@@ -83,7 +162,7 @@ export async function getActiveChallenges(businessId: number): Promise<Challenge
 }
 
 /**
- * Crear un nuevo reto
+ * Crear un nuevo reto (for admin panel)
  */
 export async function createChallenge(input: CreateChallengeInput): Promise<Challenge | null> {
   try {
@@ -129,7 +208,7 @@ export async function createChallenge(input: CreateChallengeInput): Promise<Chal
 }
 
 /**
- * Actualizar un reto existente
+ * Actualizar un reto existente (for admin panel)
  */
 export async function updateChallenge(
   id: string,
@@ -173,7 +252,7 @@ export async function updateChallenge(
 }
 
 /**
- * Eliminar un reto
+ * Eliminar un reto (for admin panel)
  */
 export async function deleteChallenge(id: string): Promise<boolean> {
   try {
@@ -197,7 +276,7 @@ export async function deleteChallenge(id: string): Promise<boolean> {
 }
 
 /**
- * Activar o desactivar un reto
+ * Activar o desactivar un reto (for admin panel)
  */
 export async function toggleChallengeActive(
   id: string,
@@ -226,7 +305,7 @@ export async function toggleChallengeActive(
 }
 
 /**
- * Obtener estadísticas de retos
+ * Obtener estadísticas de retos (for admin panel)
  */
 export async function getChallengeStats(businessId: number) {
   try {

@@ -212,6 +212,7 @@ Cada vez que visites nuestras sucursales y realices un check-in, acumularás pun
 
 *Comandos disponibles:*
 • PUNTOS - Ver tu balance
+• RETOS - Ver retos disponibles
 • AYUDA - Obtener ayuda
 
 ¿Tienes alguna pregunta? ¡Estamos para ayudarte!`
@@ -271,13 +272,14 @@ export async function sendHelpMessage(phone: string): Promise<void> {
 *Comandos disponibles:*
 
 📊 *PUNTOS* - Ver tu balance de puntos
+🎯 *RETOS* - Ver retos disponibles
 🆘 *AYUDA* - Ver este mensaje
 🛑 *STOP* - Darse de baja del programa
 
 *¿Cómo acumular puntos?*
 1. Visita nuestras sucursales
 2. Realiza un check-in
-3. Acumula puntos por cada visita
+3. Completa retos para ganar puntos
 4. Canjea por gift cards
 
 ¿Necesitas más ayuda? Escríbenos directamente.`
