@@ -641,8 +641,8 @@ export function SucursalesView() {
           setEditingBusiness(null)
         }
       }}>
-        <SheetContent side="right" className="m-4 h-[calc(100vh-2rem)] p-6 [&>button]:bg-white [&>button]:rounded-full [&>button]:w-10 [&>button]:h-10 [&>button]:flex [&>button]:items-center [&>button]:justify-center [&>button]:border [&>button]:shadow-sm [&>button]:cursor-pointer" style={{ borderRadius: '30px', borderColor: '#eeeeee' }}>
-          <SheetHeader className="pr-16">
+        <SheetContent side="right" className="m-4 h-[calc(100vh-2rem)] p-6 flex flex-col [&>button]:bg-white [&>button]:rounded-full [&>button]:w-10 [&>button]:h-10 [&>button]:flex [&>button]:items-center [&>button]:justify-center [&>button]:border [&>button]:shadow-sm [&>button]:cursor-pointer" style={{ borderRadius: '30px', borderColor: '#eeeeee' }}>
+          <SheetHeader className="pr-16 flex-shrink-0">
             <SheetTitle className="text-2xl">
               {editingBusiness ? 'Editar Sucursal' : 'Nueva Sucursal'}
             </SheetTitle>
@@ -651,7 +651,7 @@ export function SucursalesView() {
             </SheetDescription>
           </SheetHeader>
 
-          <div className="flex flex-col gap-4 py-4">
+          <div className="flex flex-col gap-4 py-4 flex-1 overflow-y-auto">
             <div className="flex flex-col gap-2">
               <Label htmlFor="nombre">Nombre de sucursal</Label>
               <FormInput
@@ -699,7 +699,7 @@ export function SucursalesView() {
             </div>
           </div>
 
-          <SheetFooter>
+          <SheetFooter className="flex-shrink-0">
             <SecondaryButton onClick={() => setIsSheetOpen(false)} disabled={isSavingBusiness}>
               Cancelar
             </SecondaryButton>
