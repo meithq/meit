@@ -357,8 +357,8 @@ export function GiftCardsView() {
       const giftCardMapped: GiftCard = {
         id: giftCardDB.id,
         codigo: giftCardDB.code,
-        cliente: customer.name,
-        telefono: customer.phone,
+        cliente: customer.name || 'N/A',
+        telefono: customer.phone || 'N/A',
         valor: giftCardDB.value,
         fechaEmision: giftCardDB.created_at,
         vencimiento: giftCardDB.expires_at,
@@ -569,7 +569,7 @@ export function GiftCardsView() {
                   onKeyPress={handleKeyPress}
                   className="flex-1"
                 />
-                <PrimaryButton onClick={handleValidarGiftCard} disabled={isValidating}>
+                <PrimaryButton onClick={() => handleValidarGiftCard()} disabled={isValidating}>
                   <CheckCircle className="mr-2 h-5 w-5" />
                   {isValidating ? "Validando..." : "Validar"}
                 </PrimaryButton>
@@ -997,7 +997,7 @@ export function GiftCardsView() {
               {[0, 1, 2, 3].map((index) => (
                 <input
                   key={index}
-                  ref={(el) => (pinInputsRef.current[index] = el)}
+                  ref={(el) => { pinInputsRef.current[index] = el }}
                   type="text"
                   inputMode="numeric"
                   maxLength={1}
