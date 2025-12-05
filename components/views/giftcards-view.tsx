@@ -27,8 +27,9 @@ import {
 } from "@/components/ui/sheet"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Home, Settings, Gift, TrendingUp, DollarSign, Percent, CheckCircle, Calendar, User, CreditCard, X } from "lucide-react"
+import { Home, Settings, Gift, TrendingUp, DollarSign, Percent, CheckCircle, Calendar, User, CreditCard, X, ScanLine } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
+import { QRScanner } from "@/components/ui/qr-scanner"
 import { useNavigation } from "@/contexts/navigation-context"
 import { getGiftCardSettings, upsertGiftCardSettings } from "@/lib/supabase/gift-card-settings"
 import { getGiftCardByCode, getGiftCardsByBusiness, redeemGiftCardComplete } from "@/lib/supabase/gift-cards"
@@ -68,6 +69,7 @@ export function GiftCardsView() {
   const [isLoadingGiftCards, setIsLoadingGiftCards] = useState(false)
   const [isRedeeming, setIsRedeeming] = useState(false)
   const [pinError, setPinError] = useState<string | null>(null)
+  const [showScanner, setShowScanner] = useState(false)
   const pinInputsRef = useRef<(HTMLInputElement | null)[]>([])
 
   useEffect(() => {
@@ -315,8 +317,10 @@ export function GiftCardsView() {
     return true
   })
 
-  const handleValidarGiftCard = async () => {
-    if (!codigoGiftCard.trim()) {
+  const handleValidarGiftCard = async (codigo?: string) => {
+    const codigoAValidar = codigo || codigoGiftCard
+
+    if (!codigoAValidar.trim()) {
       toast.error("Ingresa un código de gift card")
       return
     }
@@ -325,8 +329,13 @@ export function GiftCardsView() {
     setGiftCardNotFound(false)
 
     try {
+      // Si se pasó un código, actualizar el estado
+      if (codigo) {
+        setCodigoGiftCard(codigo)
+      }
+
       // Buscar la gift card por código
-      const giftCardDB = await getGiftCardByCode(codigoGiftCard.trim())
+      const giftCardDB = await getGiftCardByCode(codigoAValidar.trim())
 
       if (!giftCardDB) {
         // Gift card no encontrada
@@ -374,6 +383,14 @@ export function GiftCardsView() {
     if (e.key === "Enter") {
       handleValidarGiftCard()
     }
+  }
+
+  const handleScan = (decodedText: string) => {
+    // Cerrar el escáner
+    setShowScanner(false)
+
+    // Validar la gift card automáticamente con el código escaneado
+    handleValidarGiftCard(decodedText)
   }
 
   const handleCancelar = () => {
@@ -529,7 +546,17 @@ export function GiftCardsView() {
               className="p-8 shadow-none"
               style={{ borderRadius: "30px", border: "1px solid #eeeeee" }}
             >
-              <h2 className="text-2xl font-semibold mb-2">Validar Gift Card</h2>
+              <div className="flex items-start justify-between mb-2">
+                <h2 className="text-2xl font-semibold">Validar Gift Card</h2>
+                {/* Botón de escáner - Solo visible en móvil y tablet */}
+                <button
+                  onClick={() => setShowScanner(true)}
+                  className="md:hidden w-12 h-12 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors"
+                  title="Escanear código QR"
+                >
+                  <ScanLine className="w-6 h-6 text-primary" />
+                </button>
+              </div>
               <p className="text-sm text-muted-foreground mb-6">
                 Escanea el código QR de la gift card o ingresa el código manualmente. Presiona Enter para validar.
               </p>
@@ -1007,6 +1034,14 @@ export function GiftCardsView() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Escáner QR - Solo se muestra cuando showScanner es true */}
+      {showScanner && (
+        <QRScanner
+          onScan={handleScan}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
     </div>
   )
 }
