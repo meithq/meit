@@ -27,7 +27,7 @@ export function FormSelect({
   disabled,
 }: FormSelectProps) {
   return (
-    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
+    <Select value={value || undefined} onValueChange={onValueChange} disabled={disabled}>
       <SelectTrigger
         className={`w-full bg-white ${className || ""}`}
         style={{ minHeight: "56px", borderRadius: "50px", borderColor: "#eeeeee" }}

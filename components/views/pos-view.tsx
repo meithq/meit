@@ -28,6 +28,7 @@ import { getBusinesses, type Business } from "@/lib/supabase/businesses"
 import { getActiveChallenges, type Challenge } from "@/lib/supabase/challenges"
 import { validateAdminPin, createPointsAudit, getCurrentUser } from "@/lib/supabase/points-audit"
 import { checkAndGenerateGiftCards } from "@/lib/supabase/gift-card-auto-generation"
+import { createNotification } from "@/lib/supabase/notifications"
 import { FormSelect } from "@/components/ui/form-select"
 import { toast } from "sonner"
 
@@ -60,7 +61,7 @@ export function POSView() {
   const [retosDisponibles, setRetosDisponibles] = useState<Challenge[]>([])
   const [isLoadingRetos, setIsLoadingRetos] = useState(false)
   const [sucursales, setSucursales] = useState<Business[]>([])
-  const [selectedSucursal, setSelectedSucursal] = useState<string>("")
+  const [selectedSucursal, setSelectedSucursal] = useState<string | undefined>(undefined)
   const [currentBusinessId, setCurrentBusinessId] = useState<number | null>(null)
   const [currentBusinessSettingsId, setCurrentBusinessSettingsId] = useState<number | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -339,6 +340,34 @@ export function POSView() {
         points: totalPuntos
       })
       await addPointsToCustomerBusiness(cliente.id, currentBusinessSettingsId, totalPuntos)
+
+      // Crear notificación para el customer sobre los puntos asignados
+      try {
+        const retosNombres = selectedRetos
+          .map(id => retosDisponibles.find(r => r.id === id)?.nombre)
+          .filter(Boolean)
+          .join(', ')
+
+        await createNotification({
+          business_settings_id: currentBusinessSettingsId,
+          customer_id: cliente.id,
+          type: 'points_assigned',
+          title: '🌟 ¡Puntos Ganados!',
+          message: `Has ganado ${totalPuntos} puntos por completar: ${retosNombres}`,
+          metadata: {
+            customer_id: cliente.id,
+            customer_name: cliente.nombre,
+            points: totalPuntos,
+            challenges: retosNombres,
+            challenge_ids: selectedRetos
+          },
+          priority: 'normal'
+        })
+        console.log('✅ Notification created for customer:', cliente.id)
+      } catch (error) {
+        console.error('Error creating points notification:', error)
+        // No bloquear el flujo si falla la notificación
+      }
 
       // Verificar y generar gift cards automáticamente si el cliente califica
       console.log('🎁 Checking if customer qualifies for gift cards...')

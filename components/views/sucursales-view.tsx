@@ -37,6 +37,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
 import { Search, Plus, Phone, MapPin, Users, Home, MoreVertical, QrCode, Ban, Trash2, Download, Printer, Building2, Edit2 } from "lucide-react"
 import { useState, useMemo, useEffect, useRef } from "react"
@@ -61,6 +67,8 @@ export function SucursalesView() {
   const [selectedSucursal, setSelectedSucursal] = useState<Business | null>(null)
   const [sucursalToDelete, setSucursalToDelete] = useState<Business | null>(null)
   const [qrCodeUrl, setQrCodeUrl] = useState("")
+  const [appQrCodeUrl, setAppQrCodeUrl] = useState("")
+  const [activeQRTab, setActiveQRTab] = useState<'whatsapp' | 'app'>('whatsapp')
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const itemsPerPage = 10
 
@@ -144,6 +152,7 @@ export function SucursalesView() {
     if (selectedSucursal && isQRModalOpen) {
       const generateQR = async () => {
         try {
+          // Generate WhatsApp QR Code
           const qrData = selectedSucursal.qr_code || `Sucursal: ${selectedSucursal.name}`
           const url = await QRCodeLib.toDataURL(qrData, {
             width: 300,
@@ -154,6 +163,20 @@ export function SucursalesView() {
             }
           })
           setQrCodeUrl(url)
+
+          // Generate App Mobile QR Code
+          if (selectedSucursal.business_settings_id) {
+            const appQrData = `meit://business/${selectedSucursal.business_settings_id}`
+            const appUrl = await QRCodeLib.toDataURL(appQrData, {
+              width: 300,
+              margin: 2,
+              color: {
+                dark: '#000000',
+                light: '#FFFFFF'
+              }
+            })
+            setAppQrCodeUrl(appUrl)
+          }
         } catch (err) {
           console.error('Error generating QR code:', err)
         }
@@ -163,18 +186,62 @@ export function SucursalesView() {
   }, [selectedSucursal, isQRModalOpen])
 
   const handleDownloadQR = () => {
-    if (qrCodeUrl) {
+    const currentQrUrl = activeQRTab === 'whatsapp' ? qrCodeUrl : appQrCodeUrl
+    const qrType = activeQRTab === 'whatsapp' ? 'WhatsApp' : 'AppMovil'
+
+    if (currentQrUrl) {
       const link = document.createElement('a')
-      link.download = `QR-${selectedSucursal?.name || 'sucursal'}.png`
-      link.href = qrCodeUrl
+      link.download = `QR-${qrType}-${selectedSucursal?.name || 'sucursal'}.png`
+      link.href = currentQrUrl
       link.click()
     }
   }
 
   const handlePrintQR = () => {
-    if (qrCodeUrl) {
+    const currentQrUrl = activeQRTab === 'whatsapp' ? qrCodeUrl : appQrCodeUrl
+    const isWhatsApp = activeQRTab === 'whatsapp'
+
+    if (currentQrUrl) {
       const printWindow = window.open('', '_blank')
       if (printWindow) {
+        const instructions = isWhatsApp
+          ? `
+            <div class="step">
+              <div class="step-number">1</div>
+              <div class="step-text">Escanea el QR con tu cámara</div>
+            </div>
+            <div class="step">
+              <div class="step-number">2</div>
+              <div class="step-text">Se abrirá WhatsApp</div>
+            </div>
+            <div class="step">
+              <div class="step-number">3</div>
+              <div class="step-text">Presiona "Enviar"</div>
+            </div>
+            <div class="step">
+              <div class="step-number">4</div>
+              <div class="step-text">¡Recibe tus puntos!</div>
+            </div>
+          `
+          : `
+            <div class="step">
+              <div class="step-number">1</div>
+              <div class="step-text">Abre la app MEIT</div>
+            </div>
+            <div class="step">
+              <div class="step-number">2</div>
+              <div class="step-text">Ve a la sección "Escanear"</div>
+            </div>
+            <div class="step">
+              <div class="step-number">3</div>
+              <div class="step-text">Escanea este código QR</div>
+            </div>
+            <div class="step">
+              <div class="step-number">4</div>
+              <div class="step-text">¡Recibe tus puntos de bienvenida!</div>
+            </div>
+          `
+
         printWindow.document.write(`
           <html>
             <head>
@@ -307,28 +374,13 @@ export function SucursalesView() {
                 <p class="address">📍 ${selectedSucursal?.name}${selectedSucursal?.address ? ` - ${selectedSucursal.address}` : ''}</p>
 
                 <div class="qr-container">
-                  <img src="${qrCodeUrl}" alt="QR Code" />
+                  <img src="${currentQrUrl}" alt="QR Code" />
                 </div>
 
                 <div class="instructions">
                   <h2>¿Cómo hacer check-in?</h2>
                   <div class="steps">
-                    <div class="step">
-                      <div class="step-number">1</div>
-                      <div class="step-text">Escanea el QR con tu cámara</div>
-                    </div>
-                    <div class="step">
-                      <div class="step-number">2</div>
-                      <div class="step-text">Se abrirá WhatsApp</div>
-                    </div>
-                    <div class="step">
-                      <div class="step-number">3</div>
-                      <div class="step-text">Presiona "Enviar"</div>
-                    </div>
-                    <div class="step">
-                      <div class="step-number">4</div>
-                      <div class="step-text">¡Recibe tus puntos!</div>
-                    </div>
+                    ${instructions}
                   </div>
                 </div>
 
@@ -502,6 +554,9 @@ export function SucursalesView() {
                       className="data-[highlighted]:bg-primary/10 data-[highlighted]:text-primary [&[data-highlighted]>svg]:text-primary cursor-pointer"
                       style={{ borderRadius: '8px' }}
                       onClick={() => {
+                        if (!business.business_settings_id) {
+                          console.warn('Esta sucursal no tiene business_settings_id, el QR de app móvil no estará disponible')
+                        }
                         setSelectedSucursal(business)
                         setIsQRModalOpen(true)
                       }}
@@ -763,33 +818,68 @@ export function SucursalesView() {
           <DialogHeader>
             <DialogTitle className="text-2xl">{selectedSucursal?.name}</DialogTitle>
             <DialogDescription>
-              Código QR para check-in por WhatsApp
+              Códigos QR para check-in
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex flex-col items-center gap-4 py-4">
-            {qrCodeUrl && (
-              <>
-                <div className="p-6 bg-white border rounded-3xl" style={{ borderColor: '#eeeeee' }}>
-                  <img
-                    src={qrCodeUrl}
-                    alt="QR Code"
-                    className="w-[300px] h-[300px]"
-                  />
-                </div>
+          <Tabs value={activeQRTab} onValueChange={(value) => setActiveQRTab(value as 'whatsapp' | 'app')} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="whatsapp">QR WhatsApp</TabsTrigger>
+              <TabsTrigger value="app">QR App Móvil</TabsTrigger>
+            </TabsList>
 
-                {/* Mensaje de WhatsApp que se enviará */}
-                {selectedSucursal?.qr_code && (
-                  <div className="w-full p-3 bg-green-50 border border-green-200 rounded-2xl text-xs">
-                    <p className="text-gray-600 mb-1">Mensaje pre-rellenado:</p>
-                    <p className="font-mono text-green-800">
-                      {decodeURIComponent(selectedSucursal.qr_code.split('text=')[1] || 'Check-in')}
+            <TabsContent value="whatsapp" className="flex flex-col items-center gap-4 py-4">
+              {qrCodeUrl && (
+                <>
+                  <div className="p-6 bg-white border rounded-3xl" style={{ borderColor: '#eeeeee' }}>
+                    <img
+                      src={qrCodeUrl}
+                      alt="QR Code WhatsApp"
+                      className="w-[300px] h-[300px]"
+                    />
+                  </div>
+
+                  {/* Mensaje de WhatsApp que se enviará */}
+                  {selectedSucursal?.qr_code && (
+                    <div className="w-full p-3 bg-green-50 border border-green-200 rounded-2xl text-xs">
+                      <p className="text-gray-600 mb-1">Mensaje pre-rellenado:</p>
+                      <p className="font-mono text-green-800">
+                        {decodeURIComponent(selectedSucursal.qr_code.split('text=')[1] || 'Check-in')}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+            </TabsContent>
+
+            <TabsContent value="app" className="flex flex-col items-center gap-4 py-4">
+              {appQrCodeUrl ? (
+                <>
+                  <div className="p-6 bg-white border rounded-3xl" style={{ borderColor: '#eeeeee' }}>
+                    <img
+                      src={appQrCodeUrl}
+                      alt="QR Code App Móvil"
+                      className="w-[300px] h-[300px]"
+                    />
+                  </div>
+
+                  {/* Descripción del QR de App Móvil */}
+                  <div className="w-full p-3 bg-purple-50 border border-purple-200 rounded-2xl text-xs">
+                    <p className="text-gray-600 mb-1">Para usuarios de la app MEIT:</p>
+                    <p className="text-purple-800">
+                      Escanea este código desde la sección "Escanear" de la app para hacer check-in directo y ganar 10 puntos de bienvenida.
                     </p>
                   </div>
-                )}
-              </>
-            )}
-          </div>
+                </>
+              ) : (
+                <div className="w-full p-4 bg-yellow-50 border border-yellow-200 rounded-2xl text-sm">
+                  <p className="text-yellow-800">
+                    Esta sucursal no tiene un ID de configuración válido. No se puede generar el código QR para la app móvil.
+                  </p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
 
           <DialogFooter className="gap-2">
             <SecondaryButton
