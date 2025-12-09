@@ -103,11 +103,25 @@ export async function getOrCreateCustomer(
   const existingCustomer = await getCustomerByPhone(phone)
 
   if (existingCustomer) {
-    // Cliente existe, actualizamos last_visit_at y nombre
-    const updated = await updateCustomer(phone, {
+    // Preparar datos de actualización
+    const updateData: UpdateCustomerInput = {
       last_visit_at: new Date().toISOString(),
-      name: name, // Actualizamos el nombre por si cambió en WhatsApp
-    })
+    }
+
+    // Solo actualizar el nombre si el cliente NO tiene un nombre válido
+    // (es null, vacío, o "Unknown")
+    const hasValidName = existingCustomer.name &&
+                         existingCustomer.name.trim() !== '' &&
+                         existingCustomer.name !== 'Unknown'
+
+    if (!hasValidName) {
+      // El cliente no tiene un nombre válido, actualizarlo con el de WhatsApp
+      updateData.name = name
+    }
+    // Si ya tiene un nombre válido, NO lo sobrescribimos
+
+    // Cliente existe, actualizamos solo los campos necesarios
+    const updated = await updateCustomer(phone, updateData)
 
     return {
       customer: updated,
