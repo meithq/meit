@@ -554,12 +554,25 @@ Por favor verifica el nombre del negocio y vuelve a intentar, o contacta con el 
       console.log('✅ Branch found:', branch)
     }
 
-    // 3. Crear o actualizar la relación customer-business con 10 puntos
-    const POINTS_PER_CHECKIN = 10
+    // 3. Verificar si ya existe la relación para determinar si es primera visita
+    const { data: existingRelationship } = await supabase
+      .from('customer_businesses')
+      .select('id')
+      .eq('customer_id', context.customer.id)
+      .eq('business_settings_id', businessSettings.id)
+      .single()
+
+    const isFirstVisit = !existingRelationship
+
+    // 4. Crear o actualizar la relación customer-business
+    // ⚠️ IMPORTANTE: Solo dar puntos de bienvenida en la PRIMERA visita histórica
+    const WELCOME_BONUS_POINTS = 10
+    const pointsToAward = isFirstVisit ? WELCOME_BONUS_POINTS : 0
+
     const { relationship, isNew: isNewRelationship } = await getOrCreateCustomerBusiness(
       context.customer.id,
       businessSettings.id,
-      POINTS_PER_CHECKIN,
+      pointsToAward,  // 10 puntos solo si es primera visita, 0 si ya visitó antes
       branch?.id,
       supabase  // Pasar el server client para bypasear RLS
     )
@@ -570,25 +583,30 @@ Por favor verifica el nombre del negocio y vuelve a intentar, o contacta con el 
       branch_id: branch?.id,
       total_points: relationship.total_points,
       visits_count: relationship.visits_count,
+      points_awarded: pointsToAward,
+      is_first_visit: isFirstVisit,
     })
 
-    // 4. Crear notificaciones
+    // 5. Crear notificaciones
     try {
       // Notificación de check-in
       await createNotification({
         business_settings_id: businessSettings.id,
         type: 'checkin',
-        title: 'Nuevo check-in',
-        message: `${context.customerName} ha hecho check-in en ${branchName}`,
+        title: isFirstVisit ? 'Primer check-in de cliente' : 'Nuevo check-in',
+        message: isFirstVisit
+          ? `${context.customerName} ha hecho su primer check-in en ${branchName} (${WELCOME_BONUS_POINTS} puntos de bienvenida)`
+          : `${context.customerName} ha hecho check-in en ${branchName}`,
         metadata: {
           customer_id: context.customer.id,
           customer_name: context.customerName,
           customer_phone: context.phone,
           branch_id: branch?.id,
           branch_name: branchName,
-          points: POINTS_PER_CHECKIN
+          points: pointsToAward,
+          is_first_visit: isFirstVisit
         },
-        priority: 'normal'
+        priority: isFirstVisit ? 'high' : 'normal'
       }, supabase)
 
       // Si es nuevo cliente, crear notificación adicional
@@ -615,14 +633,13 @@ Por favor verifica el nombre del negocio y vuelve a intentar, o contacta con el 
       // No bloquear el check-in si falla la notificación
     }
 
-    // 5. Enviar mensaje de confirmación con puntos del negocio específico
+    // 6. Enviar mensaje de confirmación con puntos del negocio específico
     const message = `✅ *Check-in exitoso*
 
 ¡Bienvenido a *${businessName}*!
 📍 Sucursal: ${branchName}
 
-${isNewRelationship ? `🎉 ¡Es tu primera visita a este negocio! Has sido registrado.\n\n` : ''}🎁 *Puntos ganados:* ${POINTS_PER_CHECKIN} puntos
-⭐ *Total de puntos en ${businessName}:* ${relationship.total_points || 0} puntos
+${isFirstVisit ? `🎉 ¡Es tu primera visita a este negocio! Has ganado ${WELCOME_BONUS_POINTS} puntos de bienvenida.\n\n` : ''}${!isFirstVisit ? '✨ *Visita registrada exitosamente*\n\n' : ''}${isFirstVisit ? `🎁 *Puntos ganados:* ${WELCOME_BONUS_POINTS} puntos de bienvenida\n` : ''}⭐ *Total de puntos en ${businessName}:* ${relationship.total_points || 0} puntos
 🏪 *Visitas a ${businessName}:* ${relationship.visits_count || 0} visitas
 
 ¡Gracias por visitarnos! Sigue acumulando puntos para obtener recompensas.
@@ -637,7 +654,7 @@ Envía *PUNTOS* para ver tu balance completo.`
 
     console.log(`✅ Check-in processed for ${context.phone} at ${businessName} - ${branchName}`)
 
-    // 5. Enviar mensaje automático con retos disponibles (si existen)
+    // 7. Enviar mensaje automático con retos disponibles (si existen)
     if (branch?.id) {
       try {
         const challenges = await getActiveChallengesByBusiness(branch.id, supabase)
