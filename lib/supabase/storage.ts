@@ -125,3 +125,30 @@ export async function createSignedUrl(
 
   return data
 }
+
+/**
+ * Upload a business logo to Supabase Storage
+ * @param userId - The user ID (owner of the business)
+ * @param file - The image file to upload
+ * @returns The public URL of the uploaded logo
+ */
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
+
+export async function uploadBusinessLogo(userId: string, file: File): Promise<string> {
+  // Validate file type
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    throw new Error('Formato no permitido. Use JPG, PNG o WebP.')
+  }
+
+  // Validate file size
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error('El archivo excede 2MB.')
+  }
+
+  const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+  const path = `${userId}/logo.${ext}`
+
+  await uploadFile('business-logos', path, file, { upsert: true })
+  return getPublicUrl('business-logos', path)
+}
