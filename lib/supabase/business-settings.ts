@@ -10,6 +10,7 @@ export interface BusinessSettings {
   phone_code?: string
   address?: string
   type?: number
+  logo_url?: string
 }
 
 /**

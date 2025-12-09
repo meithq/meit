@@ -24,7 +24,10 @@ import { SecondaryButton } from "@/components/ui/secondary-button"
 import { getBusinessSettings, upsertBusinessSettings } from "@/lib/supabase/business-settings"
 import { getBusinessTypes, type BusinessType } from "@/lib/supabase/business-types"
 import { getGiftCardSettings, upsertGiftCardSettings } from "@/lib/supabase/gift-card-settings"
+import { uploadBusinessLogo } from "@/lib/supabase/storage"
+import { getCurrentUser } from "@/lib/supabase/auth"
 import { toast } from "sonner"
+import { Upload, X } from "lucide-react"
 
 interface SettingsModalProps {
   open: boolean
@@ -45,6 +48,11 @@ export function SettingsModal({ open, onOpenChange, initialTab = "negocio" }: Se
   const [address, setAddress] = useState("")
   const [isLoadingBusiness, setIsLoadingBusiness] = useState(false)
   const [isSavingBusiness, setIsSavingBusiness] = useState(false)
+
+  // Logo states
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
 
   // Business types from database
   const [businessTypes, setBusinessTypes] = useState<BusinessType[]>([])
@@ -109,6 +117,8 @@ export function SettingsModal({ open, onOpenChange, initialTab = "negocio" }: Se
         setPhoneCode(settings.phone_code || "414")
         setPhoneNumber(settings.phone_number || "")
         setAddress(settings.address || "")
+        setLogoUrl(settings.logo_url || null)
+        setLogoPreview(settings.logo_url || null)
       }
     } catch (error) {
       console.error("Error loading business settings:", error)
@@ -139,13 +149,29 @@ export function SettingsModal({ open, onOpenChange, initialTab = "negocio" }: Se
   const handleSaveBusinessSettings = async () => {
     setIsSavingBusiness(true)
     try {
+      let finalLogoUrl = logoUrl
+
+      // Upload new logo if selected
+      if (logoFile) {
+        const user = await getCurrentUser()
+        if (user) {
+          finalLogoUrl = await uploadBusinessLogo(user.id, logoFile)
+        }
+      }
+
       await upsertBusinessSettings({
         name: businessName,
         type: businessType ? parseInt(businessType) : undefined,
         phone_code: phoneCode,
         phone_number: phoneNumber,
         address: address,
+        logo_url: finalLogoUrl || undefined,
       })
+
+      // Reset file state after successful save
+      setLogoFile(null)
+      setLogoUrl(finalLogoUrl)
+
       toast.success("Configuración guardada exitosamente")
       onOpenChange(false)
     } catch (error) {
@@ -160,6 +186,35 @@ export function SettingsModal({ open, onOpenChange, initialTab = "negocio" }: Se
     onOpenChange(false)
     // Reset form when cancelled
     loadBusinessSettings()
+    setLogoFile(null)
+    setLogoPreview(logoUrl)
+  }
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Formato no permitido. Use JPG, PNG o WebP.')
+      return
+    }
+
+    // Validate file size (2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('El archivo excede 2MB.')
+      return
+    }
+
+    setLogoFile(file)
+    setLogoPreview(URL.createObjectURL(file))
+  }
+
+  const handleRemoveLogo = () => {
+    setLogoFile(null)
+    setLogoPreview(null)
+    setLogoUrl(null)
   }
 
   const handleRestaurarPredeterminados = () => {
@@ -225,6 +280,58 @@ export function SettingsModal({ open, onOpenChange, initialTab = "negocio" }: Se
             </div>
 
             <div className="space-y-4">
+              {/* Logo upload */}
+              <div className="flex flex-col gap-2">
+                <Label>Logo del comercio</Label>
+                <div className="flex items-center gap-4">
+                  {logoPreview ? (
+                    <div className="relative">
+                      <img
+                        src={logoPreview}
+                        alt="Logo preview"
+                        className="w-20 h-20 rounded-full object-cover border-2"
+                        style={{ borderColor: '#eeeeee' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleRemoveLogo}
+                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center bg-muted/30"
+                      style={{ borderColor: '#cccccc' }}
+                    >
+                      <Upload className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      id="logo-upload"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleLogoChange}
+                      className="hidden"
+                      disabled={isLoadingBusiness}
+                    />
+                    <label
+                      htmlFor="logo-upload"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-[12px] border cursor-pointer hover:bg-muted/50 transition-colors"
+                      style={{ borderColor: '#eeeeee' }}
+                    >
+                      <Upload className="w-4 h-4" />
+                      {logoPreview ? 'Cambiar logo' : 'Subir logo'}
+                    </label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      JPG, PNG o WebP. Máximo 2MB.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex flex-col gap-2">
                 <Label htmlFor="nombre">Nombre del comercio</Label>
                 <FormInput
